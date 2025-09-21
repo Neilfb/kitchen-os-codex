@@ -1,15 +1,16 @@
 {
-  "name": "y",
+  "name": "kitchen-os-codex",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "dev:allerq": "pnpm dev --filter=@kitchen-os/allerq",
+    "dev:docs": "pnpm dev --filter=@kitchen-os/docs",
+    "dev:foodsafe": "pnpm dev --filter=@kitchen-os/foodsafe"
   },
   "devDependencies": {
-    "prettier": "^3.6.2",
     "turbo": "^2.5.6",
     "typescript": "5.9.2"
   },
