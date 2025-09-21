@@ -1,0 +1,6 @@
+{
+  "name": "@kitchen-os/auth",
+  "version": "0.1.0",
+  "main": "AuthProvider.tsx",
+  "private": true
+}

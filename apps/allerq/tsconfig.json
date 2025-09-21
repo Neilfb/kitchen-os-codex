@@ -1,0 +1,30 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@kitchen-os/auth": [
+        "../../packages/auth"
+      ],
+      "@kitchen-os/ui": [
+        "../../packages/ui"
+      ],
+      "@kitchen-os/types": [
+        "../../packages/types"
+      ],
+      "@kitchen-os/utils": [
+        "../../packages/utils"
+      ]
+    }
+  },
+  "include": [
+    ".",
+    ".next/types/**/*.ts"
+  ]
+}
