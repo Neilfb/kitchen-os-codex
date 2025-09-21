@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { getUserByEmail } from "@/lib/ncb/getUserByEmail";
+import { Input } from "@components/ui/input";
+import { Button } from "@components/ui/button";
 import { setUserSession } from "@/lib/session/userSession";
-import bcrypt from "bcryptjs";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
@@ -18,12 +16,21 @@ export default function SignInPage() {
     setError("");
 
     try {
-      const user = await getUserByEmail(email);
-      if (!user || !(await bcrypt.compare(password, user.uid))) {
-        return setError("Invalid email or password.");
+      const response = await fetch("/api/auth/sign-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const message = typeof data?.error === "string" ? data.error : "Invalid email or password.";
+        setError(message);
+        return;
       }
 
-      setUserSession(user);
+      setUserSession(data.user);
       router.push("/dashboard");
     } catch (err) {
       console.error("Login failed:", err);

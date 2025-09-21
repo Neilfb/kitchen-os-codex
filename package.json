@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "turbo run dev --parallel",
     "dev:allerq": "pnpm dev --filter=@kitchen-os/allerq",
     "dev:docs": "pnpm dev --filter=@kitchen-os/docs",
     "dev:foodsafe": "pnpm dev --filter=@kitchen-os/foodsafe"
