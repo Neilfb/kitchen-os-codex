@@ -31,6 +31,7 @@ export default function SignupPage() {
       await createUser({
         email: email.trim().toLowerCase(),
         password,
+        fullName: name.trim(),
       })
 
       router.push('/dashboard')
