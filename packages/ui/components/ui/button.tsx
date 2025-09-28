@@ -9,11 +9,15 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const baseClasses =
   'inline-flex items-center justify-center rounded-lg text-base font-medium transition-transform transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316] disabled:pointer-events-none disabled:opacity-60'
 
+function isReactElement(child: React.ReactNode): child is React.ReactElement {
+  return React.isValidElement(child)
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ asChild = false, className = '', children, ...props }, ref) => {
     const mergedClasses = `${baseClasses} ${className}`.trim()
 
-    if (asChild && React.isValidElement(children)) {
+    if (asChild && isReactElement(children)) {
       const existingClasses = typeof children.props.className === 'string' ? children.props.className : ''
       return React.cloneElement(children, {
         className: `${existingClasses} ${mergedClasses}`.trim(),
