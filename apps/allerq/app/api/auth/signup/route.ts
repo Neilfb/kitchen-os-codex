@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       fullName,
       role,
       assignedRestaurants,
-      password_hash: hashedPassword,
+      passwordHash: hashedPassword,
     });
 
     return NextResponse.json({ status: "success", data: result }, { status: 200 });
