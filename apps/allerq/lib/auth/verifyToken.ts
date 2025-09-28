@@ -120,7 +120,7 @@ export async function verifyTokenDetailed({
   try {
     const jwtAlgorithms = await getJwtAlgorithms()
     rawPayload = jwt.verify(token, jwtSecret, {
-      algorithms: jwtAlgorithms,
+      algorithms: [...jwtAlgorithms],
     }) as RawJwtPayload
   } catch (error) {
     throw mapJwtError(error)
