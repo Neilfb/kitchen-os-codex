@@ -10,6 +10,7 @@ import {
   getSessionMaxAgeSeconds,
 } from '@/lib/auth/constants'
 import { getUserByEmail } from '@/lib/ncb/getUserByEmail'
+import type { Role } from '@/types/user'
 
 interface NcdbUserRecord {
   id: number | string
