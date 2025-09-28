@@ -87,7 +87,6 @@ export async function POST(req: NextRequest) {
       fullName,
       role,
       assignedRestaurants,
-      uid: hashedPassword,
       password_hash: hashedPassword,
     });
 
