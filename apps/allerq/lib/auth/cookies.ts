@@ -37,7 +37,7 @@ export async function buildAuthCookie(
     httpOnly: true,
     secure: true,
     sameSite: 'strict',
-    path: '/',
+    path: '/' as '/',
     maxAge: resolvedMaxAge,
   }
 }
@@ -65,7 +65,7 @@ export async function clearAuthCookie(response?: NextResponse): Promise<AuthCook
     httpOnly: true as const,
     secure: true as const,
     sameSite: 'strict' as const,
-    path: '/',
+    path: '/' as '/',
     maxAge: 0,
   }
 
