@@ -60,9 +60,34 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       getJwtSecret(),
       getJwtAlgorithms(),
     ])
-    const payload = jwt.verify(token, sessionSecret, {
-      algorithms: jwtAlgorithms,
-    }) as SessionTokenPayload
+    const decoded = jwt.verify(token, sessionSecret, {
+      algorithms: [...jwtAlgorithms],
+    }) as jwt.JwtPayload
+
+    if (
+      !decoded ||
+      typeof decoded !== 'object' ||
+      !('id' in decoded) ||
+      !('email' in decoded) ||
+      !('role' in decoded) ||
+      typeof decoded.id === 'undefined' ||
+      typeof decoded.email === 'undefined' ||
+      typeof decoded.role === 'undefined' ||
+      typeof decoded.iat !== 'number' ||
+      typeof decoded.exp !== 'number'
+    ) {
+      throw new Error('Invalid or malformed session token')
+    }
+
+    const payload: SessionTokenPayload = {
+      id: String(decoded.id),
+      email: String(decoded.email),
+      role: decoded.role as SessionRole,
+      display_name: typeof decoded.display_name === 'string' ? decoded.display_name : undefined,
+      iat: decoded.iat,
+      exp: decoded.exp,
+    }
+
     const { id, email, role, display_name } = payload
     return { id: String(id), email, role, display_name }
   } catch (error) {
