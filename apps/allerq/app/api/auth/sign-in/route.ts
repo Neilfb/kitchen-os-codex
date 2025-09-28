@@ -20,6 +20,10 @@ interface NcdbUserRecord {
   assigned_restaurants?: unknown
 }
 
+function isValidRole(role: string): role is Role {
+  return ['superadmin', 'admin', 'manager', 'staff', 'auditor'].includes(role)
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -93,7 +97,7 @@ async function normalizeSafeUser(user: NcdbUserRecord) {
 
   const allowedRoles = await getAllowedRoles()
   const roleCandidate = typeof user?.role === 'string' ? user.role.trim().toLowerCase() : ''
-  const role = allowedRoles.includes(roleCandidate) ? (roleCandidate as Role) : 'staff'
+  const role: Role = isValidRole(roleCandidate) ? roleCandidate : 'staff'
 
   const assignedRestaurants = parseAssignedRestaurants(user?.assigned_restaurants)
 
