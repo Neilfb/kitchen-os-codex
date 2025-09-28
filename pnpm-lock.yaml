@@ -136,7 +136,11 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
-  packages/auth: {}
+  packages/auth:
+    dependencies:
+      react:
+        specifier: ^18.2.0
+        version: 18.2.0
 
   packages/eslint-config:
     devDependencies:
