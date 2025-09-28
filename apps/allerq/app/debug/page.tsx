@@ -11,7 +11,7 @@ export default function DebugPage() {
   useEffect(() => {
     async function run() {
       try {
-        const user = await getUserByEmail("1992test@allerq.com");
+        const user = await getUserByEmail({ email: "1992test@allerq.com" });
         if (!user) {
           setError("No user found.");
           return;
