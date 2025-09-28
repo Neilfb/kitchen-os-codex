@@ -5,7 +5,24 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": [
+        {
+          "scope": "apps/allerq",
+          "vars": [
+            "NCDB_INSTANCE",
+            "NCDB_API_KEY",
+            "NCDB_SECRET",
+            "NCDB_SECRET_KEY",
+            "ALLERQ_JWT_SECRET",
+            "ALLERQ_SESSION_SECRET",
+            "JWT_SECRET",
+            "SMOKE_TEST_EMAIL",
+            "SMOKE_TEST_PASSWORD",
+            "ALLERQ_SMOKE_BASE_URL"
+          ]
+        }
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]

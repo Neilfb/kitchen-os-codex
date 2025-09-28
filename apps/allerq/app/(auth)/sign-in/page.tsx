@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@components/ui/input";
 import { Button } from "@components/ui/button";
-import { setUserSession } from "@/lib/session/userSession";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
@@ -30,8 +29,8 @@ export default function SignInPage() {
         return;
       }
 
-      setUserSession(data.user);
       router.push("/dashboard");
+      router.refresh();
     } catch (err) {
       console.error("Login failed:", err);
       setError("Something went wrong. Please try again.");

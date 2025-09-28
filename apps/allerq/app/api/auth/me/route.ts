@@ -7,7 +7,7 @@ const BEARER_PREFIX = /^\s*Bearer\s+/i
 
 export async function GET(request: Request) {
   try {
-    const cookieToken = getAuthCookie(request)
+    const cookieToken = await getAuthCookie(request)
     const headerToken = cookieToken ? null : extractBearerToken(request.headers.get('authorization'))
     const token = cookieToken ?? headerToken
 

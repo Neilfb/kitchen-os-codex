@@ -11,8 +11,7 @@ export async function POST() {
     { status: 200 }
   )
 
-  clearAuthCookie(response)
+  await clearAuthCookie(response)
 
   return response
 }
-

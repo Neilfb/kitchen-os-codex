@@ -1,8 +1,7 @@
-import axios from "axios";
+import axios from 'axios'
 
-const API_KEY = "06b2330b6d80051a63bb878f9709e7aa91b9fc5e11aaf519037841d50dc7";
-const INSTANCE = "48346_allerq";
-const BASE_URL = "https://api.nocodebackend.com";
+import { BASE_URL, INSTANCE, getNcdbCredentials } from './config'
+import type { RestaurantRecord } from './getRestaurantById'
 
 export interface CreateRestaurantPayload {
   name: string;
@@ -19,52 +18,73 @@ export interface CreateRestaurantPayload {
 
 export async function createRestaurant({
   name,
-  description = "",
-  address = "",
-  phone = "",
-  email = "",
-  website = "",
-  cuisine_type = "",
+  description = '',
+  address = '',
+  phone = '',
+  email = '',
+  website = '',
+  cuisine_type = '',
   owner_id,
-  logo = "",
-  cover_image = "",
-}: CreateRestaurantPayload) {
+  logo = '',
+  cover_image = '',
+}: CreateRestaurantPayload): Promise<RestaurantRecord> {
   try {
-    const timestamp = Date.now();
+    const { apiKey, secret } = getNcdbCredentials()
+
+    const timestamp = Date.now()
+
+    const payload = {
+      secret_key: secret,
+      name,
+      description,
+      address,
+      phone,
+      email,
+      website,
+      cuisine_type,
+      owner_id,
+      logo,
+      cover_image,
+      is_active: 1,
+      created_at: timestamp,
+      updated_at: timestamp,
+    }
+
+    const url = `${BASE_URL}/create/restaurants`
+
+    console.log('[createRestaurant] request', {
+      url: `${url}?Instance=${INSTANCE}`,
+      body: { ...payload, secret_key: '********' },
+      headers: { Authorization: 'Bearer ********' },
+    })
 
     const response = await axios.post(
-      `${BASE_URL}/create/restaurants?Instance=${INSTANCE}`,
-      {
-        secret_key: API_KEY,
-        name,
-        description,
-        address,
-        phone,
-        email,
-        website,
-        cuisine_type,
-        owner_id,
-        logo,
-        cover_image,
-        is_active: 1,
-        created_at: timestamp,
-        updated_at: timestamp,
-      },
+      `${url}?Instance=${INSTANCE}`,
+      payload,
       {
         headers: {
-          Authorization: `Bearer ${API_KEY}`,
-          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
       }
-    );
+    )
 
-    if (response.data?.status === "success") {
-      return response.data.data; // return created restaurant record
-    } else {
-      throw new Error("Restaurant creation failed: Unexpected response format.");
+    if (response.data?.status === 'success') {
+      return response.data.data as RestaurantRecord
     }
-  } catch (error: any) {
-    console.error("Failed to create restaurant:", error.response?.data || error.message);
-    throw new Error("Restaurant creation failed.");
+
+    throw new Error('Restaurant creation failed: Unexpected response format.')
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('[createRestaurant] axios error', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      })
+    } else {
+      console.error('[createRestaurant] unexpected error', error)
+    }
+
+    throw new Error('Restaurant creation failed.')
   }
 }

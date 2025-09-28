@@ -1,63 +1,98 @@
-import axios from "axios";
-import bcrypt from "bcryptjs";
+'use server'
 
-import { validatePassword } from "@/lib/utils/validatePassword";
+import axios from 'axios'
+import bcrypt from 'bcryptjs'
 
-const API_KEY = "06b2330b6d80051a63bb878f9709e7aa91b9fc5e11aaf519037841d50dc7";
-const INSTANCE = "48346_allerq";
-const BASE_URL = "https://api.nocodebackend.com";
+import { BASE_URL, INSTANCE, getNcdbCredentials } from './config'
 
-export interface CreateUserPayload {
-  email: string;
-  password: string;
-  displayName: string;
-  role?: "admin" | "manager" | "staff";
+interface CreateUserInput {
+  fullName: string
+  email: string
+  password: string
+  role?: string
+  assignedRestaurants?: string | string[]
 }
 
 export async function createUser({
+  fullName,
   email,
   password,
-  displayName,
-  role = "admin",
-}: CreateUserPayload) {
-  const passwordError = validatePassword(password);
-  if (passwordError) {
-    throw new Error(passwordError);
+  role = 'staff',
+  assignedRestaurants,
+}: CreateUserInput) {
+  const normalizedEmail = email.trim().toLowerCase()
+
+  const { apiKey, secret } = getNcdbCredentials()
+
+  const hashedPassword = await bcrypt.hash(password, 10)
+  if (!hashedPassword) {
+    throw new Error('Failed to generate password hash')
   }
 
-  try {
-    const uid = await bcrypt.hash(password, 10);
-    const timestamp = Date.now();
-    const external_id = `user_${timestamp}`;
+  const assigned_restaurants = Array.isArray(assignedRestaurants)
+    ? JSON.stringify(assignedRestaurants)
+    : assignedRestaurants || ''
 
+  const payload = {
+    secret_key: secret,
+    email: normalizedEmail,
+    uid: hashedPassword,
+    display_name: fullName,
+    role,
+    assigned_restaurants,
+    external_id: `user_${Date.now()}`,
+    password_hash: hashedPassword,
+  }
+
+  const url = `${BASE_URL}/create/users?Instance=${INSTANCE}`
+
+  console.log('[createUser] request', {
+    url,
+    payload: { ...payload, secret_key: '********' },
+  })
+
+  try {
     const response = await axios.post(
-      `${BASE_URL}/create/users?Instance=${INSTANCE}`,
-      {
-        secret_key: API_KEY,
-        email: email.toLowerCase(),
-        display_name: displayName,
-        uid,
-        role,
-        assigned_restaurants: "",
-        created_at: timestamp,
-        updated_at: timestamp,
-        external_id,
-      },
+      url,
+      payload,
       {
         headers: {
-          Authorization: `Bearer ${API_KEY}`,
-          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
+        transformRequest: [(data) => JSON.stringify(data)],
       }
-    );
+    )
 
-    if (response.data?.status === "success") {
-      return response.data.data; // return created user record
-    } else {
-      throw new Error("User creation failed: Unexpected response format.");
+    if (response.data?.status === 'success') {
+      return response.data.data
+      }
+
+    throw new Error(response.data?.error || 'Unknown NCDB error')
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status ?? 500
+      const data = error.response?.data
+      const message =
+        (typeof data === 'object' && data && 'message' in data && typeof data.message === 'string'
+          ? data.message
+          : undefined) || error.message
+
+      console.error('[createUser] axios error', {
+        status,
+        data,
+        message,
+      })
+
+      if (error.response) {
+        ;(error as any).status = status
+        ;(error as any).message = message
+      }
+
+      throw error
     }
-  } catch (error: any) {
-    console.error("Failed to create user:", error.response?.data || error.message);
-    throw new Error("User creation failed.");
+
+    console.error('[createUser] unexpected error', error)
+    throw error
   }
 }

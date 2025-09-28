@@ -31,7 +31,7 @@ export default function HomePage() {
             <Link href="/signup">Sign Up</Link>
           </Button>
           <Button asChild className="bg-white text-[#F97316] hover:bg-orange-50 focus-visible:ring-[#F97316] transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
-            <Link href="/login">Sign In</Link>
+            <Link href="/sign-in">Sign In</Link>
           </Button>
         </div>
       </div>

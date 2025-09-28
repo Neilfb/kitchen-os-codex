@@ -1,8 +1,8 @@
-import { getUserSession } from "@/lib/session/userSession";
+import { getSessionUser } from "@/lib/session/cookieSession";
 import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
-  const user = await getUserSession();
+  const user = await getSessionUser();
 
   if (!user) {
     redirect("/sign-in");

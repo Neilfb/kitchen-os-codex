@@ -3,16 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "kill-port-3000": "lsof -ti:3000 | xargs kill -9 || echo 'Port 3000 already free'",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:smoke": "dotenv -e .env.test -- tsx tests/smoke/sign-up-smoke.test.ts",
+    "smoke-auth": "tsx scripts/smoke-auth.ts"
   },
   "dependencies": {
     "axios": "^1.7.7",
+    "axios-cookiejar-support": "^5.0.2",
     "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "tough-cookie": "^4.1.4",
     "next": "14.1.0",
     "react": "18.2.0",
     "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.5",
+    "dotenv-cli": "^10.0.0",
+    "tsx": "^4.20.6"
   }
 }

@@ -1,9 +1,9 @@
 "use server";
 
-import { deleteUserSession } from "@/lib/session/userSession";
+import { clearSessionCookie } from "@/lib/session/cookieSession";
 import { redirect } from "next/navigation";
 
 export async function signOut() {
-  await deleteUserSession();
+  await clearSessionCookie();
   redirect("/sign-in");
 }

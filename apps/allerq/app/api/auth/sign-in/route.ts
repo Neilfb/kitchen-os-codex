@@ -3,7 +3,12 @@ import jwt from 'jsonwebtoken'
 import { NextResponse } from 'next/server'
 
 import { setAuthCookie } from '@/lib/auth/cookies'
-import { ALLOWED_ROLES, JWT_ALGORITHMS, SESSION_MAX_AGE_SECONDS, getJwtSecret } from '@/lib/auth/constants'
+import {
+  getAllowedRoles,
+  getJwtAlgorithms,
+  getJwtSecret,
+  getSessionMaxAgeSeconds,
+} from '@/lib/auth/constants'
 import { getUserByEmail } from '@/lib/ncb/getUserByEmail'
 
 interface NcdbUserRecord {
@@ -43,13 +48,18 @@ export async function POST(request: Request) {
       role: user.role,
     }
 
-    const jwtSecret = getJwtSecret()
+    const [jwtSecret, jwtAlgorithms, sessionMaxAgeSeconds] = await Promise.all([
+      getJwtSecret(),
+      getJwtAlgorithms(),
+      getSessionMaxAgeSeconds(),
+    ])
+
     const token = jwt.sign(tokenPayload, jwtSecret, {
-      algorithm: JWT_ALGORITHMS[0],
-      expiresIn: SESSION_MAX_AGE_SECONDS,
+      algorithm: jwtAlgorithms[0],
+      expiresIn: sessionMaxAgeSeconds,
     })
 
-    const safeUser = normalizeSafeUser(user)
+    const safeUser = await normalizeSafeUser(user)
 
     const response = NextResponse.json(
       {
@@ -59,7 +69,7 @@ export async function POST(request: Request) {
       { status: 200 }
     )
 
-    setAuthCookie(token, response)
+    await setAuthCookie(token, response)
 
     return response
   } catch (error) {
@@ -70,7 +80,7 @@ export async function POST(request: Request) {
   }
 }
 
-function normalizeSafeUser(user: NcdbUserRecord) {
+async function normalizeSafeUser(user: NcdbUserRecord) {
   const idNumber = typeof user?.id === 'number' ? user.id : Number(user?.id)
   if (!Number.isFinite(idNumber)) {
     throw new Error('NCDB user is missing a numeric id')
@@ -81,8 +91,9 @@ function normalizeSafeUser(user: NcdbUserRecord) {
     throw new Error('NCDB user is missing an email address')
   }
 
+  const allowedRoles = await getAllowedRoles()
   const roleCandidate = typeof user?.role === 'string' ? user.role.trim().toLowerCase() : ''
-  const role = (ALLOWED_ROLES as readonly string[]).includes(roleCandidate) ? roleCandidate : 'staff'
+  const role = allowedRoles.includes(roleCandidate) ? roleCandidate : 'staff'
 
   const assignedRestaurants = parseAssignedRestaurants(user?.assigned_restaurants)
 

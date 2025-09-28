@@ -2,7 +2,7 @@
 
 import type { NextRequest, NextResponse } from 'next/server'
 
-import { SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS } from '@/lib/auth/constants'
+import { getSessionCookieName, getSessionMaxAgeSeconds } from '@/lib/auth/constants'
 
 const COOKIE_PATH = '/'
 
@@ -16,28 +16,38 @@ export interface AuthCookieDescriptor {
   maxAge: number
 }
 
-export function buildAuthCookie(token: string, maxAge: number = SESSION_MAX_AGE_SECONDS): AuthCookieDescriptor {
+export async function buildAuthCookie(
+  token: string,
+  maxAge?: number
+): Promise<AuthCookieDescriptor> {
   if (!token?.trim()) {
     throw new Error('Auth cookie token value is required')
   }
 
+  const [sessionCookieName, sessionMaxAgeSeconds] = await Promise.all([
+    getSessionCookieName(),
+    getSessionMaxAgeSeconds(),
+  ])
+
+  const resolvedMaxAge = typeof maxAge === 'number' ? maxAge : sessionMaxAgeSeconds
+
   return {
-    name: SESSION_COOKIE_NAME,
+    name: sessionCookieName,
     value: token,
     httpOnly: true,
     secure: true,
     sameSite: 'strict',
     path: COOKIE_PATH,
-    maxAge,
+    maxAge: resolvedMaxAge,
   }
 }
 
-export function setAuthCookie(
+export async function setAuthCookie(
   token: string,
   response?: NextResponse,
-  maxAge: number = SESSION_MAX_AGE_SECONDS
-): AuthCookieDescriptor {
-  const cookie = buildAuthCookie(token, maxAge)
+  maxAge?: number
+): Promise<AuthCookieDescriptor> {
+  const cookie = await buildAuthCookie(token, maxAge)
 
   if (response) {
     response.cookies.set(cookie)
@@ -46,9 +56,11 @@ export function setAuthCookie(
   return cookie
 }
 
-export function clearAuthCookie(response?: NextResponse) {
+export async function clearAuthCookie(response?: NextResponse): Promise<AuthCookieDescriptor> {
+  const sessionCookieName = await getSessionCookieName()
+
   const cookie = {
-    name: SESSION_COOKIE_NAME,
+    name: sessionCookieName,
     value: '',
     httpOnly: true as const,
     secure: true as const,
@@ -64,14 +76,16 @@ export function clearAuthCookie(response?: NextResponse) {
   return cookie
 }
 
-export function getAuthCookie(
+export async function getAuthCookie(
   request: NextRequest | Request | undefined,
-  headerName: string = SESSION_COOKIE_NAME
-): string | null {
+  headerName?: string
+): Promise<string | null> {
   if (!request) return null
 
+  const cookieName = headerName ?? (await getSessionCookieName())
+
   if (isNextRequest(request)) {
-    const cookie = request.cookies.get(headerName)
+    const cookie = request.cookies.get(cookieName)
     if (cookie) {
       return typeof cookie === 'string' ? cookie : cookie.value
     }
@@ -84,7 +98,7 @@ export function getAuthCookie(
   for (const rawCookie of cookies) {
     const [name, ...rest] = rawCookie.split('=')
     if (!name || rest.length === 0) continue
-    if (name.trim() !== headerName) continue
+    if (name.trim() !== cookieName) continue
     const value = rest.join('=').trim()
     if (!value) return null
     try {
@@ -107,4 +121,3 @@ function isNextRequest(candidate: unknown): candidate is NextRequest {
     typeof (candidate as NextRequest).cookies?.get === 'function'
   )
 }
-

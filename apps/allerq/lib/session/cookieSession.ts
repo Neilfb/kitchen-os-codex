@@ -2,14 +2,12 @@ import { cookies } from 'next/headers'
 import jwt from 'jsonwebtoken'
 
 import {
-  AllowedRole,
-  JWT_ALGORITHMS,
-  SESSION_COOKIE_NAME,
-  SESSION_MAX_AGE_SECONDS,
+  getJwtAlgorithms,
   getJwtSecret,
+  getSessionCookieName,
+  getSessionMaxAgeSeconds,
 } from '@/lib/auth/constants'
-
-const SESSION_SECRET = getJwtSecret()
+import type { AllowedRole } from '@/lib/auth/constants'
 
 export type SessionRole = AllowedRole
 
@@ -25,39 +23,58 @@ interface SessionTokenPayload extends SessionUser {
   exp: number
 }
 
-export function setSessionCookie(user: SessionUser, maxAge: number = SESSION_MAX_AGE_SECONDS) {
-  const token = jwt.sign(user, SESSION_SECRET, {
-    expiresIn: maxAge,
-    algorithm: JWT_ALGORITHMS[0],
+export async function setSessionCookie(
+  user: SessionUser,
+  maxAge?: number
+): Promise<void> {
+  const [sessionSecret, sessionCookieName, sessionMaxAgeSeconds, jwtAlgorithms] = await Promise.all([
+    getJwtSecret(),
+    getSessionCookieName(),
+    getSessionMaxAgeSeconds(),
+    getJwtAlgorithms(),
+  ])
+
+  const resolvedMaxAge = typeof maxAge === 'number' ? maxAge : sessionMaxAgeSeconds
+
+  const token = jwt.sign(user, sessionSecret, {
+    expiresIn: resolvedMaxAge,
+    algorithm: jwtAlgorithms[0],
   })
 
-  cookies().set(SESSION_COOKIE_NAME, token, {
+  cookies().set(sessionCookieName, token, {
     httpOnly: true,
     sameSite: 'strict',
     secure: true,
     path: '/',
-    maxAge,
+    maxAge: resolvedMaxAge,
   })
 }
 
-export function getSessionUser(): SessionUser | null {
-  const token = cookies().get(SESSION_COOKIE_NAME)?.value
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const sessionCookieName = await getSessionCookieName()
+  const token = cookies().get(sessionCookieName)?.value
   if (!token) return null
 
   try {
-    const payload = jwt.verify(token, SESSION_SECRET, {
-      algorithms: JWT_ALGORITHMS,
+    const [sessionSecret, jwtAlgorithms] = await Promise.all([
+      getJwtSecret(),
+      getJwtAlgorithms(),
+    ])
+    const payload = jwt.verify(token, sessionSecret, {
+      algorithms: jwtAlgorithms,
     }) as SessionTokenPayload
     const { id, email, role, display_name } = payload
     return { id: String(id), email, role, display_name }
   } catch (error) {
-    clearSessionCookie()
+    await clearSessionCookie()
     return null
   }
 }
 
-export function clearSessionCookie() {
-  cookies().set(SESSION_COOKIE_NAME, '', {
+export async function clearSessionCookie(): Promise<void> {
+  const sessionCookieName = await getSessionCookieName()
+
+  cookies().set(sessionCookieName, '', {
     httpOnly: true,
     sameSite: 'strict',
     secure: true,

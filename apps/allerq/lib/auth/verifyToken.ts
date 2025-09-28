@@ -4,28 +4,15 @@ import type { NextRequest } from 'next/server'
 import jwt, { JsonWebTokenError, NotBeforeError, TokenExpiredError } from 'jsonwebtoken'
 
 import {
-  ALLOWED_ROLES,
-  AllowedRole,
-  JWT_ALGORITHMS,
-  SESSION_COOKIE_NAME,
+  getAllowedRoles,
+  getJwtAlgorithms,
   getJwtSecret,
+  getSessionCookieName,
 } from '@/lib/auth/constants'
+import type { AllowedRole } from '@/lib/auth/constants'
+import { AuthTokenError } from '@/lib/auth/errors'
 
 const BEARER_PREFIX = /^\s*Bearer\s+/i
-
-export type AuthErrorCode = 'TOKEN_MISSING' | 'TOKEN_INVALID' | 'TOKEN_EXPIRED' | 'ROLE_FORBIDDEN'
-
-export class AuthTokenError extends Error {
-  status: number
-  code: AuthErrorCode
-
-  constructor(message: string, status: number, code: AuthErrorCode) {
-    super(message)
-    this.name = 'AuthTokenError'
-    this.status = status
-    this.code = code
-  }
-}
 
 type UnknownRecord = Record<string, unknown>
 
@@ -76,9 +63,14 @@ export interface VerifyRequestOptions {
  */
 export default async function verifyToken(
   requestOrToken: Request | string,
-  { requiredRoles, cookieName = SESSION_COOKIE_NAME }: VerifyRequestOptions = {}
+  options: VerifyRequestOptions = {}
 ): Promise<AuthenticatedUser> {
-  const detailArgs: VerifyTokenParams = { requiredRoles, cookieName }
+  const defaultCookieName = await getSessionCookieName()
+
+  const detailArgs: VerifyTokenParams = {
+    requiredRoles: options.requiredRoles,
+    cookieName: options.cookieName ?? defaultCookieName,
+  }
 
   if (typeof requestOrToken === 'string') {
     detailArgs.token = requestOrToken
@@ -86,7 +78,7 @@ export default async function verifyToken(
     detailArgs.request = requestOrToken
   }
 
-  const { user } = verifyTokenDetailed(detailArgs)
+  const { user } = await verifyTokenDetailed(detailArgs)
 
   const idNumber = typeof user.id === 'number' ? user.id : Number(user.id)
 
@@ -110,14 +102,15 @@ export interface VerifyTokenParams {
   requiredRoles?: AllowedRole | AllowedRole[]
 }
 
-export function verifyTokenDetailed({
+export async function verifyTokenDetailed({
   request,
   token: providedToken,
-  cookieName = SESSION_COOKIE_NAME,
+  cookieName,
   requiredRoles,
-}: VerifyTokenParams): VerifiedToken {
-  const jwtSecret = getJwtSecret()
-  const token = normalizeToken(providedToken ?? extractTokenFromRequest(request, cookieName))
+}: VerifyTokenParams): Promise<VerifiedToken> {
+  const resolvedCookieName = cookieName ?? (await getSessionCookieName())
+  const jwtSecret = await getJwtSecret()
+  const token = normalizeToken(providedToken ?? extractTokenFromRequest(request, resolvedCookieName))
 
   if (!token) {
     throw new AuthTokenError('Missing authentication token', 401, 'TOKEN_MISSING')
@@ -125,14 +118,15 @@ export function verifyTokenDetailed({
 
   let rawPayload: RawJwtPayload
   try {
+    const jwtAlgorithms = await getJwtAlgorithms()
     rawPayload = jwt.verify(token, jwtSecret, {
-      algorithms: JWT_ALGORITHMS,
+      algorithms: jwtAlgorithms,
     }) as RawJwtPayload
   } catch (error) {
     throw mapJwtError(error)
   }
 
-  const user = mapPayloadToUser(rawPayload)
+  const user = await mapPayloadToUser(rawPayload)
 
   if (requiredRoles) {
     enforceRoleRequirement(user.role, requiredRoles)
@@ -159,11 +153,6 @@ function extractTokenFromRequest(
 ): string | null {
   if (!request) return null
 
-  const headerToken = extractTokenFromAuthorizationHeader(request.headers?.get('authorization'))
-  if (headerToken) {
-    return headerToken
-  }
-
   const cookieFirst = extractTokenFromCookieHeader(request.headers?.get('cookie'), cookieName)
   if (cookieFirst) {
     return cookieFirst
@@ -176,12 +165,7 @@ function extractTokenFromRequest(
     }
   }
 
-  const headerToken = extractTokenFromAuthorizationHeader(request.headers?.get('authorization'))
-  if (headerToken) {
-    return headerToken
-  }
-
-  return null
+  return extractTokenFromAuthorizationHeader(request.headers?.get('authorization'))
 }
 
 function extractTokenFromAuthorizationHeader(headerValue: string | null): string | null {
@@ -223,7 +207,7 @@ function isNextRequest(candidate: unknown): candidate is NextRequest {
   )
 }
 
-function mapPayloadToUser(payload: RawJwtPayload): VerifiedUser {
+async function mapPayloadToUser(payload: RawJwtPayload): Promise<VerifiedUser> {
   const nestedUser =
     typeof payload.user === 'object' && payload.user !== null ? (payload.user as UnknownRecord) : null
 
@@ -244,7 +228,8 @@ function mapPayloadToUser(payload: RawJwtPayload): VerifiedUser {
   }
 
   const roleCandidate = firstMeaningful([payload.role, nestedUser?.role])
-  const role = normalizeRole(roleCandidate)
+  const allowedRoles = await getAllowedRoles()
+  const role = normalizeRole(roleCandidate, allowedRoles)
 
   const assignedRestaurantsRaw = firstMeaningful([
     payload.assigned_restaurants,
@@ -274,10 +259,13 @@ function mapPayloadToUser(payload: RawJwtPayload): VerifiedUser {
   }
 }
 
-function normalizeRole(roleCandidate: unknown): AllowedRole {
+function normalizeRole(
+  roleCandidate: unknown,
+  allowedRoles: readonly string[]
+): AllowedRole {
   if (typeof roleCandidate === 'string' && roleCandidate.trim()) {
     const normalized = roleCandidate.trim().toLowerCase()
-    if ((ALLOWED_ROLES as readonly string[]).includes(normalized)) {
+    if (allowedRoles.includes(normalized)) {
       return normalized as AllowedRole
     }
   }

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { FormEvent, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { createUser } from '@/lib/users'
+import { createUser } from '@/lib/ncb/createUser'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -127,7 +127,7 @@ export default function SignupPage() {
 
         <p className="mt-6 text-center text-sm text-slate-600">
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-[#F97316] transition-colors hover:text-[#ea6b0c]">
+          <Link href="/sign-in" className="font-medium text-[#F97316] transition-colors hover:text-[#ea6b0c]">
             Sign in
           </Link>
         </p>
