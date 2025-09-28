@@ -15,6 +15,7 @@
     "smoke-auth": "pnpm --filter @kitchen-os/allerq run smoke-auth"
   },
   "devDependencies": {
+    "@types/node": "^22.15.3",
     "tsx": "^4.20.6",
     "turbo": "^2.5.6",
     "typescript": "5.9.2",
