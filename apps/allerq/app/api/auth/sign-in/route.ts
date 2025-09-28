@@ -93,7 +93,7 @@ async function normalizeSafeUser(user: NcdbUserRecord) {
 
   const allowedRoles = await getAllowedRoles()
   const roleCandidate = typeof user?.role === 'string' ? user.role.trim().toLowerCase() : ''
-  const role = allowedRoles.includes(roleCandidate) ? roleCandidate : 'staff'
+  const role = allowedRoles.includes(roleCandidate) ? (roleCandidate as Role) : 'staff'
 
   const assignedRestaurants = parseAssignedRestaurants(user?.assigned_restaurants)
 
