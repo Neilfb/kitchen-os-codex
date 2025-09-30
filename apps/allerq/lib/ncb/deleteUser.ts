@@ -1,10 +1,9 @@
 import axios from 'axios'
 
 import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError, type NcdbResponse } from './constants'
+import type { IdPayload } from '@/types/ncdb/shared'
 
-export interface DeleteUserPayload {
-  id: number
-}
+export interface DeleteUserPayload extends IdPayload {}
 
 export async function deleteUser({ id }: DeleteUserPayload): Promise<boolean> {
   if (!Number.isFinite(id) || id <= 0) {
@@ -36,8 +35,12 @@ export async function deleteUser({ id }: DeleteUserPayload): Promise<boolean> {
       return true
     }
 
+    console.error('[deleteUser] unexpected response', response.data)
     throw new Error('Failed to delete user')
   } catch (error) {
+    if (axios.isAxiosError?.(error) && error.response?.data) {
+      console.error('[deleteUser] NCDB error response', error.response.data)
+    }
     throw extractNcdbError(error)
   }
 }

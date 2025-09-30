@@ -10,7 +10,7 @@ import {
   extractNcdbError,
   type NcdbResponse,
 } from './constants'
-import type { UserRecord } from './types'
+import { RoleEnum, UserRecordSchema, type Role, type UserRecord } from '@/types/ncdb/user'
 
 export interface CreateUserInput {
   fullName: string
@@ -20,20 +20,9 @@ export interface CreateUserInput {
   assignedRestaurants?: string | string[]
 }
 
-type AllowedRole = 'admin' | 'manager' | 'superadmin'
+type AllowedRole = Role
 
-interface CreateUserPayload {
-  email: string
-  password_hash: string
-  display_name?: string
-  role: AllowedRole
-  secret_key: string
-  uid: string
-  external_id?: string
-  assigned_restaurants?: string
-}
-
-const ALLOWED_ROLES: AllowedRole[] = ['admin', 'manager', 'superadmin']
+const ALLOWED_ROLES = RoleEnum
 
 export async function createUser({
   fullName,
@@ -61,32 +50,47 @@ export async function createUser({
     : 'manager'
 
   const assignedRestaurantsValue = Array.isArray(assignedRestaurants)
-    ? JSON.stringify(assignedRestaurants)
-    : assignedRestaurants ?? ''
+    ? assignedRestaurants.map((value) => value.trim()).filter((value) => value.length > 0)
+    : typeof assignedRestaurants === 'string' && assignedRestaurants.trim()
+    ? [assignedRestaurants.trim()]
+    : undefined
 
-  const payload: CreateUserPayload = {
+  const now = Date.now()
+
+  const baseRecord = {
     email: normalizedEmail,
     password_hash: hashedPassword,
     display_name: trimmedName,
-    role: roleValue,
-    secret_key: NCDB_SECRET_KEY,
     uid: hashedPassword,
-    external_id: `user_${Date.now()}`,
+    role: roleValue,
+    created_at: now,
+    updated_at: now,
+    external_id: `user_${now}`,
     assigned_restaurants: assignedRestaurantsValue,
   }
 
-  if (!payload.email || !payload.password_hash || !payload.role || !payload.secret_key || !payload.uid) {
-    console.error('❌ createUser validation failed. Payload:', {
-      ...payload,
-      password_hash: '*****',
-      secret_key: '********',
-      uid: '*****',
-    })
-    throw new Error('Missing required field(s) in createUser payload')
+  const validatedRecord = UserRecordSchema.parse(baseRecord)
+
+  const payload: UserRecord = {
+    ...validatedRecord,
+    assigned_restaurants: validatedRecord.assigned_restaurants,
+  }
+
+  const ncdbPayload: Record<string, unknown> = {
+    ...payload,
+    secret_key: NCDB_SECRET_KEY,
+  }
+
+  if (!ncdbPayload.external_id) {
+    delete ncdbPayload.external_id
+  }
+
+  if (!payload.assigned_restaurants?.length) {
+    delete ncdbPayload.assigned_restaurants
   }
 
   const maskedPayload = {
-    ...payload,
+    ...ncdbPayload,
     password_hash: '*****',
     secret_key: '********',
     uid: '*****',
@@ -102,7 +106,7 @@ export async function createUser({
         Authorization: `Bearer ${NCDB_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      data: payload,
+      data: ncdbPayload,
     })
 
     if (response.data.status === 'success' && response.data.data) {
