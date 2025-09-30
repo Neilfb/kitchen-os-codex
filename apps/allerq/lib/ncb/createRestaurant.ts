@@ -23,22 +23,38 @@ export interface CreateRestaurantPayload {
 }
 
 export async function createRestaurant(payload: CreateRestaurantPayload): Promise<RestaurantRecord> {
+  const name = payload.name?.trim()
+  const ownerId = payload.owner_id?.trim()
+
+  if (!name) {
+    throw new Error('Restaurant name is required')
+  }
+
+  if (!ownerId) {
+    throw new Error('Restaurant owner_id is required')
+  }
+
   const body = {
     secret_key: NCDB_SECRET_KEY,
-    name: payload.name,
+    name,
     description: payload.description ?? '',
     address: payload.address ?? '',
     phone: payload.phone ?? '',
     email: payload.email ?? '',
     website: payload.website ?? '',
     cuisine_type: payload.cuisine_type ?? '',
-    owner_id: payload.owner_id,
+    owner_id: ownerId,
     logo: payload.logo ?? '',
     cover_image: payload.cover_image ?? '',
     is_active: 1,
     created_at: Date.now(),
     updated_at: Date.now(),
   }
+
+  console.log('[createRestaurant] sending payload', {
+    ...body,
+    secret_key: '********',
+  })
 
   try {
     const response = await axios<NcdbResponse<RestaurantRecord>>({

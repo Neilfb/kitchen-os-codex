@@ -7,10 +7,19 @@ export interface DeleteUserPayload {
 }
 
 export async function deleteUser({ id }: DeleteUserPayload): Promise<boolean> {
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error('A valid user id is required to delete a user')
+  }
+
   const payload = {
     secret_key: NCDB_SECRET_KEY,
     record_id: id,
   }
+
+  console.log('[deleteUser] sending payload', {
+    ...payload,
+    secret_key: '********',
+  })
 
   try {
     const response = await axios<NcdbResponse<null>>({

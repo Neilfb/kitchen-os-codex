@@ -21,21 +21,26 @@ export async function updateUser({
   assignedRestaurants,
   password,
 }: UpdateUserInput): Promise<UserRecord> {
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error('A valid user id is required to update a user')
+  }
+
   const updates: Record<string, unknown> = {
     secret_key: NCDB_SECRET_KEY,
     record_id: id,
   }
 
-  if (typeof email === 'string') {
+  if (typeof email === 'string' && email.trim()) {
     updates.email = email.trim().toLowerCase()
   }
 
-  if (typeof fullName === 'string') {
+  if (typeof fullName === 'string' && fullName.trim()) {
     updates.display_name = fullName.trim()
   }
 
-  if (typeof role === 'string') {
-    updates.role = role.trim().toLowerCase()
+  if (typeof role === 'string' && role.trim()) {
+    const normalizedRole = role.trim().toLowerCase()
+    updates.role = normalizedRole
   }
 
   if (Array.isArray(assignedRestaurants)) {
@@ -49,6 +54,23 @@ export async function updateUser({
     updates.uid = hashedPassword
     updates.password_hash = hashedPassword
   }
+
+  const updatableKeys = Object.keys(updates).filter(
+    (key) => !['secret_key', 'record_id'].includes(key)
+  )
+
+  if (updatableKeys.length === 0) {
+    throw new Error('No updates supplied for user record')
+  }
+
+  const sanitizedLog = {
+    ...updates,
+    secret_key: '********',
+    uid: updates.uid ? '*****' : undefined,
+    password_hash: updates.password_hash ? '*****' : undefined,
+  }
+
+  console.log('[updateUser] sending payload', sanitizedLog)
 
   try {
     const response = await axios<NcdbResponse<UserRecord>>({

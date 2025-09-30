@@ -7,10 +7,19 @@ export interface DeleteRestaurantPayload {
 }
 
 export async function deleteRestaurant({ id }: DeleteRestaurantPayload): Promise<boolean> {
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error('A valid restaurant id is required to delete a restaurant')
+  }
+
   const payload = {
     secret_key: NCDB_SECRET_KEY,
     record_id: id,
   }
+
+  console.log('[deleteRestaurant] sending payload', {
+    ...payload,
+    secret_key: '********',
+  })
 
   try {
     const response = await axios<NcdbResponse<null>>({
