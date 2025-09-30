@@ -1,90 +1,62 @@
 import axios from 'axios'
 
-import { BASE_URL, INSTANCE, getNcdbCredentials } from './config'
-import type { RestaurantRecord } from './getRestaurantById'
+import {
+  NCDB_API_KEY,
+  NCDB_SECRET_KEY,
+  buildNcdbUrl,
+  extractNcdbError,
+  type NcdbResponse,
+} from './constants'
+import type { RestaurantRecord } from './types'
 
 export interface CreateRestaurantPayload {
-  name: string;
-  description?: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  cuisine_type?: string;
-  owner_id: string;
-  logo?: string;
-  cover_image?: string;
+  name: string
+  description?: string
+  address?: string
+  phone?: string
+  email?: string
+  website?: string
+  cuisine_type?: string
+  owner_id: string
+  logo?: string
+  cover_image?: string
 }
 
-export async function createRestaurant({
-  name,
-  description = '',
-  address = '',
-  phone = '',
-  email = '',
-  website = '',
-  cuisine_type = '',
-  owner_id,
-  logo = '',
-  cover_image = '',
-}: CreateRestaurantPayload): Promise<RestaurantRecord> {
+export async function createRestaurant(payload: CreateRestaurantPayload): Promise<RestaurantRecord> {
+  const body = {
+    secret_key: NCDB_SECRET_KEY,
+    name: payload.name,
+    description: payload.description ?? '',
+    address: payload.address ?? '',
+    phone: payload.phone ?? '',
+    email: payload.email ?? '',
+    website: payload.website ?? '',
+    cuisine_type: payload.cuisine_type ?? '',
+    owner_id: payload.owner_id,
+    logo: payload.logo ?? '',
+    cover_image: payload.cover_image ?? '',
+    is_active: 1,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+  }
+
   try {
-    const { apiKey, secret } = getNcdbCredentials()
-
-    const timestamp = Date.now()
-
-    const payload = {
-      secret_key: secret,
-      name,
-      description,
-      address,
-      phone,
-      email,
-      website,
-      cuisine_type,
-      owner_id,
-      logo,
-      cover_image,
-      is_active: 1,
-      created_at: timestamp,
-      updated_at: timestamp,
-    }
-
-    const url = `${BASE_URL}/create/restaurants`
-
-    console.log('[createRestaurant] request', {
-      url: `${url}?Instance=${INSTANCE}`,
-      body: { ...payload, secret_key: '********' },
-      headers: { Authorization: 'Bearer ********' },
+    const response = await axios<NcdbResponse<RestaurantRecord>>({
+      method: 'post',
+      url: buildNcdbUrl('/create/restaurants'),
+      headers: {
+        Authorization: `Bearer ${NCDB_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      data: body,
     })
 
-    const response = await axios.post(
-      `${url}?Instance=${INSTANCE}`,
-      payload,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (response.data?.status === 'success') {
-      return response.data.data as RestaurantRecord
+    if (response.data.status === 'success' && response.data.data) {
+      return response.data.data
     }
 
-    throw new Error('Restaurant creation failed: Unexpected response format.')
+    throw new Error('Restaurant creation failed')
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('[createRestaurant] axios error', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-      })
-    } else {
-      console.error('[createRestaurant] unexpected error', error)
-    }
-
-    throw new Error('Restaurant creation failed.')
+    throw extractNcdbError(error)
   }
 }

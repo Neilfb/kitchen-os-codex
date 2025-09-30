@@ -16,7 +16,7 @@ Create `.env.local` files for each workspace as needed. Starter templates are pr
 - AllerQ workspace: `apps/allerq/.env.local`
 - Smoke tests: `apps/allerq/.env.test`
 
-Populate the NoCodeBackend credentials (`NCDB_API_KEY`, `NCDB_SECRET`, `NCDB_INSTANCE`) before running any backend flows.
+Populate the NoCodeBackend credentials (`NCDB_API_KEY`, `NCDB_SECRET_KEY`, `NCDB_INSTANCE`) before running any backend flows.
 
 ## Development
 

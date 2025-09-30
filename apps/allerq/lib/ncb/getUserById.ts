@@ -1,13 +1,13 @@
 import axios from 'axios'
 
 import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError, type NcdbResponse } from './constants'
-import type { RestaurantRecord } from './types'
+import type { UserRecord } from './types'
 
-export interface GetRestaurantByIdPayload {
+export interface GetUserByIdPayload {
   id: number
 }
 
-export async function getRestaurantById({ id }: GetRestaurantByIdPayload): Promise<RestaurantRecord | null> {
+export async function getUserById({ id }: GetUserByIdPayload): Promise<UserRecord | null> {
   const payload = {
     secret_key: NCDB_SECRET_KEY,
     filters: [
@@ -20,9 +20,9 @@ export async function getRestaurantById({ id }: GetRestaurantByIdPayload): Promi
   }
 
   try {
-    const response = await axios<NcdbResponse<RestaurantRecord | RestaurantRecord[]>>({
+    const response = await axios<NcdbResponse<UserRecord | UserRecord[]>>({
       method: 'post',
-      url: buildNcdbUrl('/search/restaurants'),
+      url: buildNcdbUrl('/search/users'),
       headers: {
         Authorization: `Bearer ${NCDB_API_KEY}`,
         'Content-Type': 'application/json',

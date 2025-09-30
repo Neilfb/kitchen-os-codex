@@ -1,49 +1,49 @@
-"use server";
+'use server'
 
-import axios from "axios";
-import { NCDB_API_KEY, NCDB_SECRET, NCDB_INSTANCE } from "@/lib/constants";
+import axios from 'axios'
 
-interface GetUserByEmailPayload {
-  email: string;
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError, type NcdbResponse } from './constants'
+import type { UserRecord } from './types'
+
+export interface GetUserByEmailPayload {
+  email: string
 }
 
-export async function getUserByEmail({ email }: GetUserByEmailPayload) {
-  try {
-    if (!email?.trim()) {
-      throw new Error("Invalid input: email required.");
-    }
+export async function getUserByEmail({ email }: GetUserByEmailPayload): Promise<UserRecord | null> {
+  if (!email.trim()) {
+    throw new Error('Invalid input: email required')
+  }
 
-    const normalizedEmail = email.trim().toLowerCase();
-
-    const body = {
-      secret_key: NCDB_SECRET,
-      filters: [
-        {
-          field: "email",
-          operator: "=",
-          value: normalizedEmail,
-        },
-      ],
-    };
-
-    const response = await axios.post(
-      `https://api.nocodebackend.com/search/users?Instance=${NCDB_INSTANCE}`,
-      body,
+  const normalizedEmail = email.trim().toLowerCase()
+  const payload = {
+    secret_key: NCDB_SECRET_KEY,
+    filters: [
       {
-        headers: {
-          Authorization: `Bearer ${NCDB_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+        field: 'email',
+        operator: '=',
+        value: normalizedEmail,
+      },
+    ],
+  }
 
-    if (response.data?.status === "success") {
-      return response.data.data[0] || null;
+  try {
+    const response = await axios<NcdbResponse<UserRecord | UserRecord[]>>({
+      method: 'post',
+      url: buildNcdbUrl('/search/users'),
+      headers: {
+        Authorization: `Bearer ${NCDB_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      data: payload,
+    })
+
+    if (response.data.status === 'success' && response.data.data) {
+      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
+      return records[0] ?? null
     }
 
-    return null;
-  } catch (error: any) {
-    console.error("[getUserByEmail] error", error.response?.data || error.message);
-    return null;
+    return null
+  } catch (error) {
+    throw extractNcdbError(error)
   }
 }

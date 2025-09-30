@@ -5,6 +5,7 @@ export async function POST(req: NextRequest) {
   console.log("[sign-up API] ENV CHECK:", {
     NCDB_API_KEY: process.env.NCDB_API_KEY,
     NCDB_SECRET: process.env.NCDB_SECRET,
+    NCDB_SECRET_KEY: process.env.NCDB_SECRET_KEY,
     NCDB_INSTANCE: process.env.NCDB_INSTANCE,
   });
 

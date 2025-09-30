@@ -8,7 +8,6 @@
   "globalEnv": [
     "NCDB_INSTANCE",
     "NCDB_API_KEY",
-    "NCDB_SECRET",
     "NCDB_SECRET_KEY",
     "ALLERQ_JWT_SECRET",
     "ALLERQ_SESSION_SECRET",
