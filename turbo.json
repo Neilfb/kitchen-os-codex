@@ -2,10 +2,11 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**"]
+      "outputs": [".next/**", "dist/**"]
     }
   },
   "globalEnv": [
+    "NCDB_BASE_URL",
     "NCDB_INSTANCE",
     "NCDB_API_KEY",
     "NCDB_SECRET_KEY",
