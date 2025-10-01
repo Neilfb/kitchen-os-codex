@@ -70,7 +70,9 @@ export async function createRestaurant(payload: CreateRestaurantPayload): Promis
         console.error('[createRestaurant] validation error', parsed.error.flatten())
         throw new Error('NCDB returned malformed restaurant record')
       }
-      return parsed.data
+
+      const restaurantRecord = parsed.data
+      return restaurantRecord
     }
 
     throw new Error('Restaurant creation failed')
