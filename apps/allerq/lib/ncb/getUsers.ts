@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { z } from 'zod'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError, type NcdbResponse } from './constants'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
 import { UserRecordSchema, type UserRecord } from '@/types/ncdb/user'
 
 export interface GetUsersOptions {
@@ -41,7 +41,7 @@ export async function getUsers(options: GetUsersOptions = {}): Promise<UserRecor
   })
 
   try {
-    const response = await axios<NcdbResponse<UserRecord | UserRecord[]>>({
+    const response = await axios({
       method: 'post',
       url: buildNcdbUrl('/search/users'),
       headers: {

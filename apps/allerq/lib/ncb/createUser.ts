@@ -3,13 +3,7 @@
 import axios from 'axios'
 import bcrypt from 'bcryptjs'
 
-import {
-  NCDB_API_KEY,
-  NCDB_SECRET_KEY,
-  buildNcdbUrl,
-  extractNcdbError,
-  type NcdbResponse,
-} from './constants'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
 import { RoleEnum, UserRecordSchema, type Role, type UserRecord } from '@/types/ncdb/user'
 
 export interface CreateUserInput {
@@ -99,7 +93,7 @@ export async function createUser({
   console.log('🔍 Sending payload to NCDB:', maskedPayload)
 
   try {
-    const response = await axios<NcdbResponse<UserRecord>>({
+    const response = await axios({
       method: 'post',
       url: buildNcdbUrl('/create/users'),
       headers: {
@@ -109,12 +103,22 @@ export async function createUser({
       data: ncdbPayload,
     })
 
-    if (response.data.status === 'success' && response.data.data) {
+    const status = response.data?.status
+    const data = response.data?.data
+
+    if (status === 'success' && data) {
+      const parsed = UserRecordSchema.safeParse(data)
+      if (!parsed.success) {
+        console.error('❌ createUser validation failed for response', parsed.error.flatten())
+        throw new Error('NCDB returned malformed user record')
+      }
+
       console.log('✅ createUser response', {
-        status: response.data.status,
-        data: response.data.data ? { id: response.data.data.id, email: response.data.data.email } : null,
+        status,
+        data: { id: parsed.data.id, email: parsed.data.email },
       })
-      return response.data.data
+
+      return parsed.data
     }
 
     console.error('❌ createUser unexpected response', response.data)

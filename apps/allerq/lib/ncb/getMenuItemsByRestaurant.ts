@@ -1,7 +1,7 @@
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError, type NcdbResponse } from './constants'
-import type { MenuItemRecord } from './types'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { MenuItemRecordSchema, type MenuItemRecord } from '@/types/ncdb/menu'
 
 export interface GetMenuItemsByRestaurantPayload {
   restaurantId: number
@@ -22,7 +22,7 @@ export async function getMenuItemsByRestaurant({
   }
 
   try {
-    const response = await axios<NcdbResponse<MenuItemRecord | MenuItemRecord[]>>({
+    const response = await axios({
       method: 'post',
       url: buildNcdbUrl('/search/menu_items'),
       headers: {
@@ -35,6 +35,15 @@ export async function getMenuItemsByRestaurant({
     if (response.data.status === 'success' && response.data.data) {
       const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
       return records
+        .map((record) => {
+          const parsed = MenuItemRecordSchema.safeParse(record)
+          if (!parsed.success) {
+            console.error('[getMenuItemsByRestaurant] validation error', parsed.error.flatten())
+            return null
+          }
+          return parsed.data
+        })
+        .filter((record): record is MenuItemRecord => record !== null)
     }
 
     return []

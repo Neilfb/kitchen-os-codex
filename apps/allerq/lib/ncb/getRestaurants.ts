@@ -1,7 +1,7 @@
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError, type NcdbResponse } from './constants'
-import type { RestaurantRecord } from './types'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
 
 export interface GetRestaurantsOptions {
   ownerId?: string
@@ -38,7 +38,7 @@ export async function getRestaurants(options: GetRestaurantsOptions = {}): Promi
   }
 
   try {
-    const response = await axios<NcdbResponse<RestaurantRecord | RestaurantRecord[]>>({
+    const response = await axios({
       method: 'post',
       url: buildNcdbUrl('/search/restaurants'),
       headers: {
@@ -49,7 +49,17 @@ export async function getRestaurants(options: GetRestaurantsOptions = {}): Promi
     })
 
     if (response.data.status === 'success' && response.data.data) {
-      return Array.isArray(response.data.data) ? response.data.data : [response.data.data]
+      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
+      return records
+        .map((record) => {
+          const parsed = RestaurantRecordSchema.safeParse(record)
+          if (!parsed.success) {
+            console.error('[getRestaurants] validation error', parsed.error.flatten())
+            return null
+          }
+          return parsed.data
+        })
+        .filter((record): record is RestaurantRecord => record !== null)
     }
 
     return []

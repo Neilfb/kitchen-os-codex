@@ -13,7 +13,22 @@ export const UserRecordSchema = z.object({
   created_at: z.number().int(),
   updated_at: z.number().int(),
   external_id: z.string().optional(),
-  assigned_restaurants: z.array(z.string()).optional(),
+  assigned_restaurants: z
+    .preprocess((value) => {
+      if (Array.isArray(value)) {
+        return value
+      }
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value)
+          return Array.isArray(parsed) ? parsed : undefined
+        } catch {
+          return value
+        }
+      }
+      return value
+    }, z.array(z.string()).optional())
+    .optional(),
 })
 
 export type UserRecord = z.infer<typeof UserRecordSchema>

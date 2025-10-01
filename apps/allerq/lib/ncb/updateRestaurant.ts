@@ -1,7 +1,7 @@
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError, type NcdbResponse } from './constants'
-import type { RestaurantRecord } from './types'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
 
 export interface UpdateRestaurantInput {
   id: number
@@ -56,7 +56,7 @@ export async function updateRestaurant({ id, ...updates }: UpdateRestaurantInput
   })
 
   try {
-    const response = await axios<NcdbResponse<RestaurantRecord>>({
+    const response = await axios({
       method: 'post',
       url: buildNcdbUrl('/update/restaurants'),
       headers: {
@@ -66,8 +66,16 @@ export async function updateRestaurant({ id, ...updates }: UpdateRestaurantInput
       data: payload,
     })
 
-    if (response.data.status === 'success' && response.data.data) {
-      return response.data.data
+    const status = response.data?.status
+    const data = response.data?.data
+
+    if (status === 'success' && data) {
+      const parsed = RestaurantRecordSchema.safeParse(data)
+      if (!parsed.success) {
+        console.error('[updateRestaurant] validation error', parsed.error.flatten())
+        throw new Error('NCDB returned malformed restaurant record')
+      }
+      return parsed.data
     }
 
     throw new Error('Failed to update restaurant')
