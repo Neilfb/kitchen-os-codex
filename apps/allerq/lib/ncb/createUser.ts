@@ -2,9 +2,10 @@
 
 import axios from 'axios'
 import bcrypt from 'bcryptjs'
+import { randomUUID } from 'crypto'
 
 import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
-import { RoleEnum, UserRecordSchema, type Role, type UserRecord } from '@/types/ncdb/user'
+import { RoleEnum, UserRecordSchema, type Role } from '@/types/ncdb/user'
 
 export interface CreateUserInput {
   fullName: string
@@ -14,9 +15,26 @@ export interface CreateUserInput {
   assignedRestaurants?: string | string[]
 }
 
-type AllowedRole = Role
+const ALLOWED_ROLES = RoleEnum.filter((role): role is Exclude<Role, 'user'> => role !== 'user') as Role[]
 
-const ALLOWED_ROLES = RoleEnum
+function normalizeAssignedRestaurants(input?: string | string[]): string[] | undefined {
+  if (Array.isArray(input)) {
+    const cleaned = input.map((value) => value.trim()).filter((value) => value.length > 0)
+    return cleaned.length > 0 ? cleaned : undefined
+  }
+
+  if (typeof input === 'string' && input.trim()) {
+    return [input.trim()]
+  }
+
+  return undefined
+}
+
+function stripEmptyValues<T extends Record<string, unknown>>(payload: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([_, value]) => value !== undefined && value !== null && value !== '')
+  ) as Partial<T>
+}
 
 export async function createUser({
   fullName,
@@ -24,7 +42,7 @@ export async function createUser({
   password,
   role = 'manager',
   assignedRestaurants,
-}: CreateUserInput): Promise<UserRecord> {
+}: CreateUserInput): Promise<boolean> {
   const trimmedName = fullName.trim()
   if (!trimmedName) {
     throw new Error('Full name is required to create a user')
@@ -37,21 +55,16 @@ export async function createUser({
 
   const hashedPassword = password.startsWith('$2') ? password : await bcrypt.hash(password, 10)
 
-  const normalizedRoleInput =
-    typeof role === 'string' && role.trim() ? role.trim().toLowerCase() : 'manager'
-  const roleValue: AllowedRole = ALLOWED_ROLES.includes(normalizedRoleInput as AllowedRole)
-    ? (normalizedRoleInput as AllowedRole)
+  const normalizedRoleInput = role.trim().toLowerCase() as Role
+  const roleValue: Role = ALLOWED_ROLES.includes(normalizedRoleInput as Role)
+    ? (normalizedRoleInput as Role)
     : 'manager'
-
-  const assignedRestaurantsValue = Array.isArray(assignedRestaurants)
-    ? assignedRestaurants.map((value) => value.trim()).filter((value) => value.length > 0)
-    : typeof assignedRestaurants === 'string' && assignedRestaurants.trim()
-    ? [assignedRestaurants.trim()]
-    : undefined
 
   const now = Date.now()
 
-  const baseRecord = {
+  const assignedRestaurantsValue = normalizeAssignedRestaurants(assignedRestaurants)
+
+  const recordCandidate = {
     email: normalizedEmail,
     password_hash: hashedPassword,
     display_name: trimmedName,
@@ -59,38 +72,25 @@ export async function createUser({
     role: roleValue,
     created_at: now,
     updated_at: now,
-    external_id: `user_${now}`,
+    external_id: randomUUID(),
     assigned_restaurants: assignedRestaurantsValue,
   }
 
-  const validatedRecord = UserRecordSchema.parse(baseRecord)
+  await UserRecordSchema.parseAsync(recordCandidate)
 
-  const payload: UserRecord = {
-    ...validatedRecord,
-    assigned_restaurants: validatedRecord.assigned_restaurants,
-  }
-
-  const ncdbPayload: Record<string, unknown> = {
-    ...payload,
+  const payload = stripEmptyValues({
+    ...recordCandidate,
     secret_key: NCDB_SECRET_KEY,
-  }
+  })
 
-  if (!ncdbPayload.external_id) {
-    delete ncdbPayload.external_id
-  }
-
-  if (!payload.assigned_restaurants?.length) {
-    delete ncdbPayload.assigned_restaurants
-  }
-
-  const maskedPayload = {
-    ...ncdbPayload,
+  const loggedPayload = {
+    ...payload,
     password_hash: '*****',
-    secret_key: '********',
     uid: '*****',
+    secret_key: '********',
   }
 
-  console.log('🔍 Sending payload to NCDB:', maskedPayload)
+  console.log('[DEBUG createUser payload]', loggedPayload)
 
   try {
     const response = await axios({
@@ -100,32 +100,18 @@ export async function createUser({
         Authorization: `Bearer ${NCDB_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      data: ncdbPayload,
+      data: payload,
     })
 
-    const status = response.data?.status
-    const data = response.data?.data
-
-    if (status === 'success' && data) {
-      const parsed = UserRecordSchema.safeParse(data)
-      if (!parsed.success) {
-        console.error('❌ createUser validation failed for response', parsed.error.flatten())
-        throw new Error('NCDB returned malformed user record')
-      }
-
-      console.log('✅ createUser response', {
-        status,
-        data: { id: parsed.data.id, email: parsed.data.email },
-      })
-
-      return parsed.data
+    if (response.data?.status === 'success') {
+      return true
     }
 
-    console.error('❌ createUser unexpected response', response.data)
+    console.error('[createUser] unexpected response', response.data)
     throw new Error('Failed to create user')
   } catch (error) {
     if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('❌ createUser NCDB error response', error.response.data)
+      console.error('[createUser] NCDB error response', error.response.data)
     }
     throw extractNcdbError(error)
   }
