@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
 import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
 
 export interface GetRestaurantsOptions {
@@ -11,22 +11,16 @@ export interface GetRestaurantsOptions {
 }
 
 export async function getRestaurants(options: GetRestaurantsOptions = {}): Promise<RestaurantRecord[]> {
-  const filters = [] as Array<{ field: string; operator: string; value: string | number }>
-
-  if (typeof options.ownerId === 'string' && options.ownerId.trim()) {
-    filters.push({ field: 'owner_id', operator: '=', value: options.ownerId.trim() })
-  }
-
-  if (typeof options.isActive === 'boolean') {
-    filters.push({ field: 'is_active', operator: '=', value: options.isActive ? 1 : 0 })
-  }
-
   const payload: Record<string, unknown> = {
     secret_key: NCDB_SECRET_KEY,
   }
 
-  if (filters.length > 0) {
-    payload.filters = filters
+  if (typeof options.ownerId === 'string' && options.ownerId.trim()) {
+    payload.owner_id = options.ownerId.trim()
+  }
+
+  if (typeof options.isActive === 'boolean') {
+    payload.is_active = options.isActive ? 1 : 0
   }
 
   if (typeof options.limit === 'number') {
@@ -52,12 +46,11 @@ export async function getRestaurants(options: GetRestaurantsOptions = {}): Promi
       const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
       return records
         .map((record) => {
-          const parsed = RestaurantRecordSchema.safeParse(record)
-          if (!parsed.success) {
-            console.error('[getRestaurants] validation error', parsed.error.flatten())
+          try {
+            return ensureParseSuccess(RestaurantRecordSchema, record, 'getRestaurants record')
+          } catch {
             return null
           }
-          return parsed.data
         })
         .filter((record): record is RestaurantRecord => record !== null)
     }

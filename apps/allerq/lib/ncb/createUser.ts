@@ -32,7 +32,7 @@ function normalizeAssignedRestaurants(input?: string | string[]): string[] | und
 
 function stripEmptyValues<T extends Record<string, unknown>>(payload: T): Partial<T> {
   return Object.fromEntries(
-    Object.entries(payload).filter(([_, value]) => value !== undefined && value !== null && value !== '')
+    Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== '')
   ) as Partial<T>
 }
 

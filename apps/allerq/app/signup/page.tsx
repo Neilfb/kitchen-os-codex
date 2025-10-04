@@ -4,8 +4,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FormEvent, useState } from 'react'
+import { signIn } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
+import { getPasswordStrength, getPasswordStrengthLabel } from '@/components/auth/passwordStrength'
 import { createUser } from '@/lib/ncb/createUser'
 
 export default function SignupPage() {
@@ -13,6 +15,7 @@ export default function SignupPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -28,13 +31,27 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
+      const normalizedEmail = email.trim().toLowerCase()
+
       await createUser({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
         fullName: name.trim(),
       })
 
+      const signInResult = await signIn('credentials', {
+        redirect: false,
+        email: normalizedEmail,
+        password,
+      })
+
+      if (signInResult?.error) {
+        setError(signInResult.error)
+        return
+      }
+
       router.push('/dashboard')
+      router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to complete signup right now.'
       setError(message)
@@ -100,18 +117,28 @@ export default function SignupPage() {
             <label htmlFor="password" className="text-sm font-medium text-slate-700">
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 shadow-sm transition duration-150 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316]/40"
-              placeholder="Enter a secure password"
-              minLength={8}
-            />
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 shadow-sm transition duration-150 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316]/40"
+                placeholder="Enter a secure password"
+                minLength={8}
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-2 my-2 rounded px-2 text-xs font-semibold text-slate-600 hover:text-orange-600"
+                onClick={() => setShowPassword((prev) => !prev)}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <PasswordStrengthHint password={password} />
           </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
@@ -133,5 +160,36 @@ export default function SignupPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+function PasswordStrengthHint({ password }: { password: string }) {
+  const strength = getPasswordStrength(password)
+  const label = getPasswordStrengthLabel(strength)
+
+  const colorClass = {
+    weak: 'text-red-600',
+    fair: 'text-orange-600',
+    good: 'text-amber-600',
+    strong: 'text-green-600',
+  }[strength]
+
+  const progress = {
+    weak: 'w-1/4 bg-red-500',
+    fair: 'w-1/2 bg-orange-500',
+    good: 'w-3/4 bg-amber-500',
+    strong: 'w-full bg-green-500',
+  }[strength]
+
+  return (
+    <div className="space-y-1 text-sm">
+      <div className="h-1 rounded-full bg-slate-200">
+        <div className={`h-1 rounded-full transition-all duration-200 ${progress}`} />
+      </div>
+      <p className={colorClass}>{label}</p>
+      <p className="text-xs text-slate-500">
+        Use at least 12 characters with a mix of upper/lowercase letters, numbers, and symbols for a stronger password.
+      </p>
+    </div>
   )
 }

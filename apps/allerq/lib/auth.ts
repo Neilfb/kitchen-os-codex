@@ -1,55 +1,29 @@
-import bcrypt from 'bcryptjs'
+import { getServerSession } from 'next-auth'
 
-import { getUserByEmail } from './ncb/getUserByEmail'
+import { authOptions } from '@/lib/auth/nextAuth'
 
-export interface User {
-  id: number
-  email: string
-  uid: string // hashed password
-  display_name: string
-  role: string
-  assigned_restaurants: string
-  created_at: number
-  updated_at: number
-  external_id: string
+type RequiredRole = 'superadmin' | 'admin' | 'manager'
+
+export async function getAuthSession() {
+  return getServerSession(authOptions)
 }
 
-export async function loginWithNoCodeBackend(email: string, password: string): Promise<User> {
-  const userRecord = await getUserByEmail({ email })
+export async function requireAuthSession() {
+  const session = await getAuthSession()
+  if (!session || !session.user) {
+    throw new Error('Authentication required')
+  }
+  return session
+}
 
-  if (!userRecord) {
-    throw new Error('User not found')
+export async function requireRole(roles: RequiredRole | RequiredRole[]) {
+  const allowed = Array.isArray(roles) ? roles : [roles]
+  const session = await requireAuthSession()
+  const role = session.user?.role
+
+  if (!role || !allowed.includes(role as RequiredRole)) {
+    throw new Error('Insufficient permissions')
   }
 
-  const passwordMatch = await bcrypt.compare(password, userRecord.uid)
-
-  if (!passwordMatch) {
-    throw new Error('Invalid password')
-  }
-
-  const requiredFields = ['id', 'email', 'uid', 'display_name', 'role'] as const
-
-  const missing = requiredFields.filter((field) => {
-    const value = userRecord[field]
-    return value === undefined || value === null || (typeof value === 'string' && !value.trim())
-  })
-
-  if (missing.length > 0) {
-    throw new Error(`User record missing required fields: ${missing.join(', ')}`)
-  }
-
-  const user: User = {
-    id: Number(userRecord.id),
-    email: String(userRecord.email),
-    uid: String(userRecord.uid),
-    display_name: String(userRecord.display_name),
-    role: String(userRecord.role),
-    assigned_restaurants: typeof userRecord.assigned_restaurants === 'string' ? userRecord.assigned_restaurants : '',
-    created_at: typeof userRecord.created_at === 'number' ? userRecord.created_at : Date.now(),
-    updated_at: typeof userRecord.updated_at === 'number' ? userRecord.updated_at : Date.now(),
-    external_id: typeof userRecord.external_id === 'string' ? userRecord.external_id : '',
-  }
-
-  // ✅ Validated NCDB record mapped to User
-  return user
+  return session
 }

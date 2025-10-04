@@ -1,8 +1,6 @@
 import axios from 'axios'
 import bcrypt from 'bcryptjs'
-import { z } from 'zod'
-
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
 import { RoleEnum, UserRecordSchema, type UserRecord } from '@/types/ncdb/user'
 import type { IdPayload } from '@/types/ncdb/shared'
 
@@ -115,12 +113,7 @@ export async function updateUser({
     })
 
     if (response.data.status === 'success' && response.data.data) {
-      const parsed = UserRecordSchema.safeParse(response.data.data)
-      if (!parsed.success) {
-        console.error('[updateUser] validation error', parsed.error.flatten())
-        throw new Error('NCDB returned malformed user record')
-      }
-      return parsed.data
+      return ensureParseSuccess(UserRecordSchema, response.data.data, 'updateUser response')
     }
 
     console.error('[updateUser] unexpected response', response.data)

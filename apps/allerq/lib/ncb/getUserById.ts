@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
 import { UserRecordSchema, type UserRecord } from '@/types/ncdb/user'
 
 export interface GetUserByIdPayload {
@@ -10,13 +10,7 @@ export interface GetUserByIdPayload {
 export async function getUserById({ id }: GetUserByIdPayload): Promise<UserRecord | null> {
   const payload = {
     secret_key: NCDB_SECRET_KEY,
-    filters: [
-      {
-        field: 'id',
-        operator: '=',
-        value: id,
-      },
-    ],
+    id,
   }
 
   try {
@@ -33,11 +27,11 @@ export async function getUserById({ id }: GetUserByIdPayload): Promise<UserRecor
     if (response.data.status === 'success' && response.data.data) {
       const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
       for (const record of records) {
-        const parsed = UserRecordSchema.safeParse(record)
-        if (parsed.success) {
-          return parsed.data
+        try {
+          return ensureParseSuccess(UserRecordSchema, record, 'getUserById record')
+        } catch {
+          continue
         }
-        console.error('[getUserById] validation error', parsed.error.flatten())
       }
 
       throw new Error('NCDB returned malformed user record')

@@ -3,9 +3,7 @@ import axios from 'axios'
 import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
 import type { IdPayload } from '@/types/ncdb/shared'
 
-export interface DeleteUserPayload extends IdPayload {}
-
-export async function deleteUser({ id }: DeleteUserPayload): Promise<boolean> {
+export async function deleteUser({ id }: IdPayload): Promise<boolean> {
   if (!Number.isFinite(id) || id <= 0) {
     throw new Error('A valid user id is required to delete a user')
   }

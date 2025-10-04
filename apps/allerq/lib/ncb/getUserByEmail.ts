@@ -2,7 +2,7 @@
 
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
 import { UserRecordSchema, type UserRecord } from '@/types/ncdb/user'
 
 export interface GetUserByEmailPayload {
@@ -17,13 +17,7 @@ export async function getUserByEmail({ email }: GetUserByEmailPayload): Promise<
   const normalizedEmail = email.trim().toLowerCase()
   const payload = {
     secret_key: NCDB_SECRET_KEY,
-    filters: [
-      {
-        field: 'email',
-        operator: '=',
-        value: normalizedEmail,
-      },
-    ],
+    email: normalizedEmail,
   }
 
   try {
@@ -41,11 +35,11 @@ export async function getUserByEmail({ email }: GetUserByEmailPayload): Promise<
       const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
 
       for (const record of records) {
-        const parsed = UserRecordSchema.safeParse(record)
-        if (parsed.success) {
-          return parsed.data
+        try {
+          return ensureParseSuccess(UserRecordSchema, record, 'getUserByEmail record')
+        } catch {
+          continue
         }
-        console.error('[getUserByEmail] validation error', parsed.error.flatten())
       }
 
       throw new Error('NCDB returned malformed user record')

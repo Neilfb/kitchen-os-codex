@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
 import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
 
 export interface CreateRestaurantPayload {
@@ -65,13 +65,12 @@ export async function createRestaurant(payload: CreateRestaurantPayload): Promis
     const data = response.data?.data
 
     if (status === 'success' && data) {
-      const parsed = RestaurantRecordSchema.safeParse(data)
-      if (!parsed.success) {
-        console.error('[createRestaurant] validation error', parsed.error.flatten())
-        throw new Error('NCDB returned malformed restaurant record')
-      }
+      const restaurantRecord = ensureParseSuccess(
+        RestaurantRecordSchema,
+        data,
+        'createRestaurant response'
+      )
 
-      const restaurantRecord = parsed.data
       return restaurantRecord
     }
 

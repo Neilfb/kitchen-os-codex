@@ -18,7 +18,7 @@ type SignupPayload = {
 type NormalizedSignupPayload = {
   email: string;
   password: string;
-  fullName?: string;
+  fullName: string;
   role?: AllowedRole;
   assignedRestaurants?: string | string[];
 };
@@ -32,14 +32,15 @@ function validatePayload(input: SignupPayload): NormalizedSignupPayload {
     throw new Error("Password is required");
   }
 
+  if (typeof input.fullName !== "string" || !input.fullName.trim()) {
+    throw new Error("Full name is required");
+  }
+
   const normalized: NormalizedSignupPayload = {
     email: input.email.trim().toLowerCase(),
     password: input.password,
+    fullName: input.fullName.trim(),
   };
-
-  if (typeof input.fullName === "string" && input.fullName.trim()) {
-    normalized.fullName = input.fullName.trim();
-  }
 
   if (input.role !== undefined) {
     if (typeof input.role !== "string") {

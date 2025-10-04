@@ -1,7 +1,13 @@
 import axios from 'axios'
 import { z } from 'zod'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import {
+  NCDB_API_KEY,
+  NCDB_SECRET_KEY,
+  buildNcdbUrl,
+  ensureParseSuccess,
+  extractNcdbError,
+} from './constants'
 import { MenuItemRecordSchema, type MenuItemRecord } from '@/types/ncdb/menu'
 import type { IdPayload } from '@/types/ncdb/shared'
 
@@ -64,12 +70,7 @@ export async function createMenuItem(input: CreateMenuItemInput): Promise<MenuIt
     })
 
     if (response.data?.status === 'success' && response.data?.data) {
-      const parsed = MenuItemRecordSchema.safeParse(response.data.data)
-      if (!parsed.success) {
-        console.error('[createMenuItem] NCDB response validation error', parsed.error.flatten())
-        throw new Error('NCDB returned malformed menu item record')
-      }
-      return parsed.data
+      return ensureParseSuccess(MenuItemRecordSchema, response.data.data, 'createMenuItem response')
     }
 
     console.error('[createMenuItem] unexpected response', response.data)
@@ -91,25 +92,21 @@ export interface GetMenuItemsOptions {
 }
 
 export async function getMenuItems(options: GetMenuItemsOptions = {}): Promise<MenuItemRecord[]> {
-  const filters: Array<{ field: string; operator: string; value: string | number }> = []
-
-  if (typeof options.menuId === 'number') {
-    filters.push({ field: 'menu_id', operator: '=', value: options.menuId })
-  }
-
-  if (typeof options.restaurantId === 'number') {
-    filters.push({ field: 'restaurant_id', operator: '=', value: options.restaurantId })
-  }
-
-  if (typeof options.isActive === 'boolean') {
-    filters.push({ field: 'is_active', operator: '=', value: options.isActive ? 1 : 0 })
-  }
-
   const payload: Record<string, unknown> = {
     secret_key: NCDB_SECRET_KEY,
   }
 
-  if (filters.length > 0) payload.filters = filters
+  if (typeof options.menuId === 'number') {
+    payload.menu_id = options.menuId
+  }
+
+  if (typeof options.restaurantId === 'number') {
+    payload.restaurant_id = options.restaurantId
+  }
+
+  if (typeof options.isActive === 'boolean') {
+    payload.is_active = options.isActive ? 1 : 0
+  }
   if (typeof options.limit === 'number') payload.limit = options.limit
   if (typeof options.offset === 'number') payload.offset = options.offset
 
@@ -131,12 +128,7 @@ export async function getMenuItems(options: GetMenuItemsOptions = {}): Promise<M
 
     if (response.data?.status === 'success' && response.data?.data) {
       const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      const parsed = MenuItemArraySchema.safeParse(records)
-      if (!parsed.success) {
-        console.error('[getMenuItems] validation error', parsed.error.flatten())
-        throw new Error('NCDB returned malformed menu item records')
-      }
-      return parsed.data
+      return ensureParseSuccess(MenuItemArraySchema, records, 'getMenuItems records')
     }
 
     if (response.data?.status === 'success') {
@@ -213,12 +205,7 @@ export async function updateMenuItem({ id, ...updates }: UpdateMenuItemInput): P
     })
 
     if (response.data?.status === 'success' && response.data?.data) {
-      const parsed = MenuItemRecordSchema.safeParse(response.data.data)
-      if (!parsed.success) {
-        console.error('[updateMenuItem] validation error', parsed.error.flatten())
-        throw new Error('NCDB returned malformed menu item record')
-      }
-      return parsed.data
+      return ensureParseSuccess(MenuItemRecordSchema, response.data.data, 'updateMenuItem response')
     }
 
     console.error('[updateMenuItem] unexpected response', response.data)

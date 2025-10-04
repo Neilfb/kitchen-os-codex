@@ -16,6 +16,9 @@ export const UserRecordSchema = z
     external_id: z.string().optional(),
     assigned_restaurants: z
       .preprocess((value) => {
+        if (value === null) {
+          return undefined
+        }
         if (Array.isArray(value)) {
           return value
         }
