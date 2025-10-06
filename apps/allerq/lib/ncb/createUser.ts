@@ -15,7 +15,7 @@ export interface CreateUserInput {
   assignedRestaurants?: string | string[]
 }
 
-const ALLOWED_ROLES = RoleEnum.filter((role): role is Exclude<Role, 'user'> => role !== 'user') as Role[]
+const ALLOWED_ROLES: Role[] = [...RoleEnum]
 
 function normalizeAssignedRestaurants(input?: string | string[]): string[] | undefined {
   if (Array.isArray(input)) {
@@ -40,7 +40,7 @@ export async function createUser({
   fullName,
   email,
   password,
-  role = 'manager',
+  role = 'admin',
   assignedRestaurants,
 }: CreateUserInput): Promise<boolean> {
   const trimmedName = fullName.trim()

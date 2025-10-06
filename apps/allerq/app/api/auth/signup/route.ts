@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createUser } from "@/lib/ncb/createUser";
 
-const ALLOWED_ROLES = ["superadmin", "admin", "manager", "staff", "auditor"] as const;
+const ALLOWED_ROLES = ["superadmin", "admin", "manager"] as const;
 
 type AllowedRole = (typeof ALLOWED_ROLES)[number];
 

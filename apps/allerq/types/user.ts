@@ -1,4 +1,21 @@
-export type Role = 'superadmin' | 'admin' | 'manager' | 'staff' | 'auditor'
+export type Role = 'superadmin' | 'admin' | 'manager'
+
+export type Capability =
+  | 'platform.superadmin'
+  | 'platform.debug'
+  | 'restaurant.create'
+  | 'restaurant.manage:any'
+  | 'restaurant.manage:own'
+  | 'restaurant.manage:assigned'
+  | 'menu.manage'
+  | 'user.manage:any'
+  | 'user.manage:own'
+  | 'user.manage.roles'
+  | 'analytics.view:any'
+  | 'analytics.view:own'
+  | 'billing.view:any'
+  | 'billing.view:own'
+  | 'qr.generate'
 
 export interface User {
   id: string
@@ -6,4 +23,13 @@ export interface User {
   name?: string
   role: Role
   assigned_restaurants?: string[]
+}
+
+export interface SessionUser {
+  id: string
+  email: string
+  name?: string
+  role: Role
+  assignedRestaurants: string[]
+  capabilities: Capability[]
 }

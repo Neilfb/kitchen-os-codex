@@ -1,44 +1,91 @@
-import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 
+import { SignOutButton } from '@/components/auth/SignOutButton'
 import { DashboardNavigation } from '@/components/dashboard/Navigation'
-import { authOptions } from '@/lib/auth/nextAuth'
+import { PageLayout, Section, CardGrid } from '@/components/dashboard/PageLayout'
+import { ActionCard } from '@/components/dashboard/ActionCard'
 import { CreateRestaurantForm } from '@/components/dashboard/CreateRestaurantForm'
 import { DeleteRestaurantForm } from '@/components/dashboard/DeleteRestaurantForm'
 import { UpdateRestaurantForm } from '@/components/dashboard/UpdateRestaurantForm'
+import { authOptions } from '@/lib/auth/nextAuth'
 import { getRestaurants } from '@/lib/ncb/getRestaurants'
+import { requireAnyCapability } from '@/lib/auth/guards'
 
 export default async function RestaurantsPage() {
   const session = await getServerSession(authOptions)
-
-  if (!session?.user) {
-    redirect('/sign-in')
-  }
-
-  if (session.user.role !== 'admin' && session.user.role !== 'superadmin') {
-    redirect('/dashboard')
-  }
+  requireAnyCapability(session, ['restaurant.manage:any', 'restaurant.create'])
 
   const restaurants = await getRestaurants()
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="space-y-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Restaurants</h1>
-          <p className="text-sm text-slate-600">Manage all venues connected to AllerQ.</p>
-        </div>
-        <DashboardNavigation />
-      </header>
+    <PageLayout
+      title="Restaurants"
+      description="Manage every venue connected to AllerQ."
+      navigation={<DashboardNavigation />}
+      headerActions={<SignOutButton className="bg-orange-600 text-white" />}
+    >
+      <Section
+        id="restaurant-actions"
+        title="Quick actions"
+        description="Pick the workflow you need, or jump straight to the full table."
+      >
+        <CardGrid>
+          <ActionCard
+            title="Create a restaurant"
+            description="Set up a new venue and keep details current."
+            href="#create-restaurant"
+            cta="Open form"
+          />
+          <ActionCard
+            title="Update details"
+            description="Edit restaurant names, owners, and contact info."
+            href="#update-restaurant"
+            cta="Open form"
+          />
+          <ActionCard
+            title="Remove a restaurant"
+            description="Retire venues that no longer need access to AllerQ."
+            href="#delete-restaurant"
+            cta="Open form"
+          />
+          <ActionCard
+            title="View the full list"
+            description="Scan every venue at a glance with owners and created dates."
+            href="#restaurant-table"
+            cta="Scroll to table"
+          />
+        </CardGrid>
+      </Section>
 
-      <CreateRestaurantForm />
-      <UpdateRestaurantForm restaurants={restaurants} />
-      <DeleteRestaurantForm restaurants={restaurants} />
+      <Section
+        id="create-restaurant"
+        title="Create a restaurant"
+        description="Capture the essentials to get a venue online fast."
+      >
+        <CreateRestaurantForm />
+      </Section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">All restaurants</h2>
-        </div>
+      <Section
+        id="update-restaurant"
+        title="Update a restaurant"
+        description="Choose an existing venue to edit its details."
+      >
+        <UpdateRestaurantForm restaurants={restaurants} />
+      </Section>
+
+      <Section
+        id="delete-restaurant"
+        title="Delete a restaurant"
+        description="Remove a venue when access is no longer required."
+      >
+        <DeleteRestaurantForm restaurants={restaurants} />
+      </Section>
+
+      <Section
+        id="restaurant-table"
+        title="All restaurants"
+        description="A complete view of every venue in AllerQ."
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
             <thead className="bg-slate-50">
@@ -70,7 +117,7 @@ export default async function RestaurantsPage() {
             </tbody>
           </table>
         </div>
-      </section>
-    </div>
+      </Section>
+    </PageLayout>
   )
 }

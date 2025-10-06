@@ -8,27 +8,27 @@ import { authOptions } from '@/lib/auth/nextAuth'
 import { createUser } from '@/lib/ncb/createUser'
 import { updateUser } from '@/lib/ncb/updateUser'
 import { deleteUser } from '@/lib/ncb/deleteUser'
+import { requireAnyCapability } from '@/lib/auth/guards'
+import { ensureAssignableRole } from '@/lib/auth/permissions'
+import type { Role } from '@/types/user'
 
 const CreateUserSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().email('Valid email required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  role: z.enum(['superadmin', 'admin', 'manager', 'staff', 'auditor']).default('manager'),
+  role: z.enum(['superadmin', 'admin', 'manager']).default('manager'),
 })
 
 const UpdateUserSchema = z.object({
   id: z.coerce.number().int().positive('User is required'),
   fullName: z.string().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),
-  role: z.enum(['superadmin', 'admin', 'manager', 'staff', 'auditor']).optional(),
+  role: z.enum(['superadmin', 'admin', 'manager']).optional(),
 })
 
 export async function createUserAction(formData: FormData) {
   const session = await getServerSession(authOptions)
-
-  if (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'superadmin')) {
-    return { status: 'error' as const, message: 'Unauthorized' }
-  }
+  const actor = requireAnyCapability(session, ['user.manage:any', 'user.manage:own'])
 
   const raw = {
     fullName: formData.get('fullName'),
@@ -44,11 +44,13 @@ export async function createUserAction(formData: FormData) {
   }
 
   try {
+    const safeRole = ensureAssignableRole(actor.role, parsed.data.role as Role)
+
     await createUser({
       fullName: parsed.data.fullName,
       email: parsed.data.email,
       password: parsed.data.password,
-      role: parsed.data.role,
+      role: safeRole,
     })
 
     revalidatePath('/users')
@@ -61,10 +63,7 @@ export async function createUserAction(formData: FormData) {
 
 export async function updateUserAction(formData: FormData) {
   const session = await getServerSession(authOptions)
-
-  if (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'superadmin')) {
-    return { status: 'error' as const, message: 'Unauthorized' }
-  }
+  const actor = requireAnyCapability(session, ['user.manage:any', 'user.manage:own'])
 
   const raw = {
     id: formData.get('id'),
@@ -80,11 +79,13 @@ export async function updateUserAction(formData: FormData) {
   }
 
   try {
+    const roleToApply = parsed.data.role ? ensureAssignableRole(actor.role, parsed.data.role as Role) : undefined
+
     await updateUser({
       id: parsed.data.id,
       fullName: parsed.data.fullName,
       password: parsed.data.password,
-      role: parsed.data.role,
+      role: roleToApply,
     })
 
     revalidatePath('/users')
@@ -97,10 +98,7 @@ export async function updateUserAction(formData: FormData) {
 
 export async function deleteUserAction(formData: FormData) {
   const session = await getServerSession(authOptions)
-
-  if (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'superadmin')) {
-    return { status: 'error' as const, message: 'Unauthorized' }
-  }
+  requireAnyCapability(session, ['user.manage:any', 'user.manage:own'])
 
   const idRaw = formData.get('id')
   const id = Number(idRaw)

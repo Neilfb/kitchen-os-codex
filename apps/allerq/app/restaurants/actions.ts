@@ -8,6 +8,7 @@ import { authOptions } from '@/lib/auth/nextAuth'
 import { createRestaurant } from '@/lib/ncb/createRestaurant'
 import { updateRestaurant } from '@/lib/ncb/updateRestaurant'
 import { deleteRestaurant } from '@/lib/ncb/deleteRestaurant'
+import { requireAnyCapability } from '@/lib/auth/guards'
 
 const CreateRestaurantSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -31,9 +32,7 @@ const UpdateRestaurantSchema = z.object({
 
 export async function createRestaurantAction(formData: FormData) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'superadmin')) {
-    throw new Error('Unauthorized')
-  }
+  requireAnyCapability(session, ['restaurant.create', 'restaurant.manage:any'])
 
   const raw = {
     name: formData.get('name'),
@@ -81,9 +80,7 @@ export async function createRestaurantAction(formData: FormData) {
 
 export async function updateRestaurantAction(formData: FormData) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'superadmin')) {
-    return { status: 'error' as const, message: 'Unauthorized' }
-  }
+  requireAnyCapability(session, ['restaurant.manage:any', 'restaurant.manage:own'])
 
   const raw = {
     id: formData.get('id'),
@@ -122,9 +119,7 @@ export async function updateRestaurantAction(formData: FormData) {
 
 export async function deleteRestaurantAction(formData: FormData) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'superadmin')) {
-    return { status: 'error' as const, message: 'Unauthorized' }
-  }
+  requireAnyCapability(session, ['restaurant.manage:any', 'restaurant.manage:own'])
 
   const idRaw = formData.get('id')
   const id = Number(idRaw)

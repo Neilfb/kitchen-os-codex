@@ -1,4 +1,4 @@
-const ALLOWED_ROLE_VALUES = ['superadmin', 'admin', 'manager', 'staff', 'auditor'] as const
+const ALLOWED_ROLE_VALUES = ['superadmin', 'admin', 'manager'] as const
 const SESSION_COOKIE_NAME_VALUE = '__Host-allerq-token'
 const SESSION_MAX_AGE_SECONDS_VALUE = 60 * 60 * 24 * 7 // 7 days
 const JWT_ALGORITHM_VALUES = ['HS256'] as const

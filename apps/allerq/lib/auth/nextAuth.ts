@@ -10,6 +10,13 @@ if (process.env.NEXTAUTH_URL === undefined) {
 }
 
 import { getUserByEmail } from '@/lib/ncb/getUserByEmail'
+import {
+  buildSessionUser,
+  listCapabilitiesForRole,
+  normalizeAssignedRestaurants,
+  sanitizeCapabilities,
+} from '@/lib/auth/permissions'
+import type { Capability, Role } from '@/types/user'
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -38,12 +45,21 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid credentials')
         }
 
-        return {
+        const sessionUser = buildSessionUser({
           id: String(user.id ?? user.email),
           email: user.email,
-          name: user.display_name ?? user.email,
-          role: user.role,
-          assignedRestaurants: user.assigned_restaurants ?? [],
+          name: user.display_name,
+          role: user.role as Role,
+          assignedRestaurants: user.assigned_restaurants,
+        })
+
+        return {
+          id: sessionUser.id,
+          email: sessionUser.email,
+          name: sessionUser.name,
+          role: sessionUser.role,
+          assignedRestaurants: sessionUser.assignedRestaurants,
+          capabilities: sessionUser.capabilities,
         }
       },
     }),
@@ -57,15 +73,23 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role
-        token.assignedRestaurants = user.assignedRestaurants ?? []
+        const role = (user.role as Role) ?? 'manager'
+        token.role = role
+        token.assignedRestaurants = normalizeAssignedRestaurants(user.assignedRestaurants)
+        token.capabilities = sanitizeCapabilities(user.capabilities, role)
+      } else {
+        const role = (token.role as Role) ?? 'manager'
+        token.assignedRestaurants = normalizeAssignedRestaurants(token.assignedRestaurants)
+        token.capabilities = sanitizeCapabilities(token.capabilities, role)
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role
-        session.user.assignedRestaurants = token.assignedRestaurants ?? []
+        const role = (token.role as Role) ?? 'manager'
+        session.user.role = role
+        session.user.assignedRestaurants = normalizeAssignedRestaurants(token.assignedRestaurants)
+        session.user.capabilities = sanitizeCapabilities(token.capabilities, role)
       }
       return session
     },

@@ -1,13 +1,18 @@
-import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { DashboardNavigation } from '@/components/dashboard/Navigation'
+import { PageLayout, Section, CardGrid } from '@/components/dashboard/PageLayout'
+import { ActionCard } from '@/components/dashboard/ActionCard'
 import { CreateUserForm } from '@/components/dashboard/CreateUserForm'
 import { CreateRestaurantForm } from '@/components/dashboard/CreateRestaurantForm'
 import { authOptions } from '@/lib/auth/nextAuth'
 import { getRestaurants } from '@/lib/ncb/getRestaurants'
 import { getUsers } from '@/lib/ncb/getUsers'
+import { requireUser } from '@/lib/auth/guards'
+import { userHasCapability } from '@/lib/auth/permissions'
+import type { Capability } from '@/types/user'
 
 const ROLE_LABEL: Record<string, string> = {
   superadmin: 'Superadmin',
@@ -15,15 +20,17 @@ const ROLE_LABEL: Record<string, string> = {
   manager: 'Manager',
 }
 
+const ADMIN_CAPABILITIES: Capability[] = [
+  'restaurant.create',
+  'restaurant.manage:any',
+  'user.manage:any',
+  'user.manage:own',
+]
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
-
-  if (!session?.user) {
-    redirect('/sign-in')
-  }
-
-  const user = session.user
-  const userRoleLabel = user.role ? ROLE_LABEL[user.role] ?? user.role : 'Unknown'
+  const user = requireUser(session)
+  const userRoleLabel = ROLE_LABEL[user.role] ?? user.role
 
   const [restaurants, users] = await Promise.all([
     getRestaurants().catch((error) => {
@@ -36,73 +43,157 @@ export default async function DashboardPage() {
     }),
   ])
 
-  const isAdmin = user.role === 'admin' || user.role === 'superadmin'
+  const isAdmin = ADMIN_CAPABILITIES.some((capability) => userHasCapability(user, capability))
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="space-y-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Welcome, {user.name ?? user.email}</h1>
-            <p className="text-sm text-slate-600">Role: {userRoleLabel}</p>
-          </div>
-          <SignOutButton className="self-start bg-orange-600 text-white sm:self-auto" />
-        </div>
-        <DashboardNavigation />
-      </header>
+    <PageLayout
+      title={`Welcome, ${user.name ?? user.email}`}
+      description={`Role: ${userRoleLabel}`}
+      navigation={<DashboardNavigation />}
+      headerActions={<SignOutButton className="bg-orange-600 text-white" />}
+    >
+      {isAdmin ? (
+        <Section
+          id="quick-actions"
+          title="Quick actions"
+          description="Jump straight to the admin tools you need."
+        >
+          <CardGrid>
+            <ActionCard
+              title="Add a restaurant"
+              description="Create a new venue record and assign an owner."
+              href="#create-restaurant"
+              cta="Open form"
+            />
+            <ActionCard
+              title="Add a user"
+              description="Invite a teammate and set their role."
+              href="#create-user"
+              cta="Open form"
+            />
+            <ActionCard
+              title="Manage restaurants"
+              description="Review every venue, edit details, or remove records."
+              href="/restaurants"
+              cta="Go to page"
+            />
+            <ActionCard
+              title="Manage users"
+              description="Update roles and clean up unused accounts."
+              href="/users"
+              cta="Go to page"
+            />
+          </CardGrid>
+        </Section>
+      ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-4">
-          {isAdmin && <CreateRestaurantForm />}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Restaurants</h2>
-            {restaurants.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-600">No restaurants found.</p>
-            ) : (
-              <ul className="mt-4 space-y-3">
-                {restaurants.slice(0, 6).map((restaurant) => (
-                  <li key={restaurant.id} className="rounded-lg border border-slate-200 p-3">
-                    <p className="font-medium text-slate-900">{restaurant.name}</p>
-                    <p className="text-sm text-slate-600">Owner: {restaurant.owner_id}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {isAdmin && <p className="mt-4 text-sm text-slate-500">View full list in Restaurants tab.</p>}
-          </div>
-        </div>
+      {isAdmin ? (
+        <Section
+          id="create-restaurant"
+          title="Create a restaurant"
+          description="Capture the basics now and refine details later."
+        >
+          <CreateRestaurantForm />
+        </Section>
+      ) : null}
 
-        <div className="space-y-4">
-          {isAdmin && <CreateUserForm />}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Users</h2>
-            {users.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-600">No users found.</p>
-            ) : (
-              <ul className="mt-4 space-y-3">
-                {users.slice(0, 6).map((platformUser) => (
-                  <li key={platformUser.id ?? platformUser.email} className="rounded-lg border border-slate-200 p-3">
-                    <p className="font-medium text-slate-900">{platformUser.display_name ?? platformUser.email}</p>
-                    <p className="text-sm text-slate-600">Role: {platformUser.role}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {isAdmin && <p className="mt-4 text-sm text-slate-500">View full list in Users tab.</p>}
-          </div>
-        </div>
-      </section>
+      {isAdmin ? (
+        <Section
+          id="create-user"
+          title="Create a user"
+          description="Set a temporary password and share it securely."
+        >
+          <CreateUserForm />
+        </Section>
+      ) : null}
 
-      {user.role === 'manager' && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Manager quick actions</h2>
-          <ul className="mt-4 space-y-2 text-sm text-slate-700">
-            <li>Review menus assigned to you</li>
-            <li>Ensure allergen tags are complete</li>
-            <li>Coordinate with staff on upcoming menu changes</li>
+      <Section
+        id="recent-data"
+        title="Latest activity"
+        description="A snapshot of the most recent restaurants and users."
+      >
+        <div className="grid gap-6 lg:grid-cols-2">
+          <DataList
+            title="Restaurants"
+            emptyState="No restaurants yet."
+            footerLink={isAdmin ? { href: '/restaurants', label: 'View all restaurants' } : undefined}
+            items={restaurants.slice(0, 6).map((restaurant) => ({
+              id: restaurant.id,
+              primary: restaurant.name,
+              secondary: restaurant.owner_id ? `Owner: ${restaurant.owner_id}` : 'Owner pending',
+            }))}
+          />
+
+          <DataList
+            title="Users"
+            emptyState="No users yet."
+            footerLink={isAdmin ? { href: '/users', label: 'View all users' } : undefined}
+            items={users.slice(0, 6).map((platformUser) => ({
+              id: platformUser.id ?? platformUser.email,
+              primary: platformUser.display_name ?? platformUser.email,
+              secondary: platformUser.role ? `Role: ${platformUser.role}` : 'Role pending',
+            }))}
+          />
+        </div>
+      </Section>
+
+      {user.role === 'manager' ? (
+        <Section
+          id="manager-tips"
+          title="Manager quick actions"
+          description="Keep menus sharp and allergen data trusted."
+        >
+          <ul className="space-y-2 text-sm text-slate-700">
+            <li>Review the menus assigned to you and flag gaps.</li>
+            <li>Ensure allergen tags stay accurate with every change.</li>
+            <li>Coordinate with staff on upcoming menu updates.</li>
           </ul>
-        </section>
-      )}
-    </div>
+        </Section>
+      ) : null}
+    </PageLayout>
+  )
+}
+
+type DataListProps = {
+  title: string
+  emptyState: string
+  items: Array<{ id: string | number | null | undefined; primary: string | null | undefined; secondary?: string | null }>
+  footerLink?: { href: string; label: string }
+}
+
+function DataList({ title, emptyState, items, footerLink }: DataListProps) {
+  return (
+    <article className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50/60">
+      <div className="border-b border-slate-200 px-4 py-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-600">{title}</h3>
+      </div>
+      <div className="flex-1 px-4 py-4">
+        {items.length === 0 ? (
+          <p className="text-sm text-slate-600">{emptyState}</p>
+        ) : (
+          <ul className="space-y-3">
+            {items.map((item) => (
+              <li key={item.id ?? item.primary} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <p className="text-sm font-medium text-slate-900">{item.primary ?? 'Unknown'}</p>
+                {item.secondary ? <p className="text-xs text-slate-600">{item.secondary}</p> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {footerLink ? (
+        <div className="border-t border-slate-200 px-4 py-3">
+          <Link
+            href={footerLink.href}
+            className="text-sm font-semibold text-orange-600 hover:text-orange-700"
+          >
+            <span>{footerLink.label}</span>
+            <span aria-hidden="true" className="ml-1">
+              &gt;
+            </span>
+          </Link>
+        </div>
+      ) : null}
+    </article>
   )
 }

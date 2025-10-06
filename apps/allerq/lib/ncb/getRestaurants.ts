@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { z } from 'zod'
 
 import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
 import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
@@ -9,6 +10,8 @@ export interface GetRestaurantsOptions {
   limit?: number
   offset?: number
 }
+
+const RestaurantsArraySchema = z.array(RestaurantRecordSchema)
 
 export async function getRestaurants(options: GetRestaurantsOptions = {}): Promise<RestaurantRecord[]> {
   const payload: Record<string, unknown> = {
@@ -44,18 +47,15 @@ export async function getRestaurants(options: GetRestaurantsOptions = {}): Promi
 
     if (response.data.status === 'success' && response.data.data) {
       const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      return records
-        .map((record) => {
-          try {
-            return ensureParseSuccess(RestaurantRecordSchema, record, 'getRestaurants record')
-          } catch {
-            return null
-          }
-        })
-        .filter((record): record is RestaurantRecord => record !== null)
+      return ensureParseSuccess(RestaurantsArraySchema, records, 'getRestaurants records')
     }
 
-    return []
+    if (response.data.status === 'success') {
+      return []
+    }
+
+    console.error('[getRestaurants] unexpected response', response.data)
+    throw new Error('Failed to fetch restaurants')
   } catch (error) {
     throw extractNcdbError(error)
   }

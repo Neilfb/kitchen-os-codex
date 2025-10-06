@@ -1,44 +1,91 @@
-import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 
+import { SignOutButton } from '@/components/auth/SignOutButton'
 import { DashboardNavigation } from '@/components/dashboard/Navigation'
+import { PageLayout, Section, CardGrid } from '@/components/dashboard/PageLayout'
+import { ActionCard } from '@/components/dashboard/ActionCard'
 import { CreateUserForm } from '@/components/dashboard/CreateUserForm'
 import { UpdateUserForm } from '@/components/dashboard/UpdateUserForm'
 import { DeleteUserForm } from '@/components/dashboard/DeleteUserForm'
 import { authOptions } from '@/lib/auth/nextAuth'
 import { getUsers } from '@/lib/ncb/getUsers'
+import { requireAnyCapability } from '@/lib/auth/guards'
 
 export default async function UsersPage() {
   const session = await getServerSession(authOptions)
-
-  if (!session?.user) {
-    redirect('/sign-in')
-  }
-
-  if (session.user.role !== 'admin' && session.user.role !== 'superadmin') {
-    redirect('/dashboard')
-  }
+  requireAnyCapability(session, ['user.manage:any', 'user.manage:own'])
 
   const users = await getUsers()
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="space-y-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Users</h1>
-          <p className="text-sm text-slate-600">View and manage all user accounts.</p>
-        </div>
-        <DashboardNavigation />
-      </header>
+    <PageLayout
+      title="Users"
+      description="Invite, update, and remove kitchen staff."
+      navigation={<DashboardNavigation />}
+      headerActions={<SignOutButton className="bg-orange-600 text-white" />}
+    >
+      <Section
+        id="user-actions"
+        title="Quick actions"
+        description="Pick a workflow or jump to the full directory."
+      >
+        <CardGrid>
+          <ActionCard
+            title="Create a user"
+            description="Invite a teammate with the right role from the start."
+            href="#create-user"
+            cta="Open form"
+          />
+          <ActionCard
+            title="Update a user"
+            description="Change email, name, or role assignments."
+            href="#update-user"
+            cta="Open form"
+          />
+          <ActionCard
+            title="Remove a user"
+            description="Clean up accounts that should no longer access AllerQ."
+            href="#delete-user"
+            cta="Open form"
+          />
+          <ActionCard
+            title="View the directory"
+            description="Scan every user with their email, role, and created date."
+            href="#user-table"
+            cta="Scroll to table"
+          />
+        </CardGrid>
+      </Section>
 
-      <CreateUserForm />
-      <UpdateUserForm users={users} />
-      <DeleteUserForm users={users} />
+      <Section
+        id="create-user"
+        title="Create a user"
+        description="Set up a temporary password and confirm their role."
+      >
+        <CreateUserForm />
+      </Section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">All users</h2>
-        </div>
+      <Section
+        id="update-user"
+        title="Update a user"
+        description="Select an existing account to edit."
+      >
+        <UpdateUserForm users={users} />
+      </Section>
+
+      <Section
+        id="delete-user"
+        title="Delete a user"
+        description="Remove access when a teammate leaves the business."
+      >
+        <DeleteUserForm users={users} />
+      </Section>
+
+      <Section
+        id="user-table"
+        title="All users"
+        description="A complete view of everyone in AllerQ."
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
             <thead className="bg-slate-50">
@@ -76,8 +123,8 @@ export default async function UsersPage() {
             </tbody>
           </table>
         </div>
-      </section>
-    </div>
+      </Section>
+    </PageLayout>
   )
 }
 

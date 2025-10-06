@@ -61,10 +61,16 @@ export default function SignInPage() {
       <Button onClick={handleSignIn} className="w-full">
         Sign In
       </Button>
-      <div className="text-center text-sm text-slate-600">
+      <div className="flex flex-col gap-2 text-center text-sm text-slate-600">
         <Link href="/forgot-password" className="font-medium text-orange-600 hover:underline">
           Forgot password?
         </Link>
+        <p>
+          Don&apos;t have an account?{' '}
+          <Link href="/signup" className="font-medium text-orange-600 hover:underline">
+            Sign up
+          </Link>
+        </p>
       </div>
     </div>
   )

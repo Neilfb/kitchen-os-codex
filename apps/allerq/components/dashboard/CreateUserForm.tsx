@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 
+import { useToast } from '@/components/ui/toast'
 import { createUserAction } from '@/app/users/actions'
 import { Button } from '@components/ui/button'
 import { Input } from '@components/ui/input'
@@ -10,24 +11,27 @@ const ROLES = [
   { value: 'manager', label: 'Manager' },
   { value: 'admin', label: 'Admin' },
   { value: 'superadmin', label: 'Superadmin' },
-  { value: 'staff', label: 'Staff' },
-  { value: 'auditor', label: 'Auditor' },
 ] as const
 
 export function CreateUserForm() {
-  const [message, setMessage] = useState<string | null>(null)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const { toast } = useToast()
+  const [ariaMessage, setAriaMessage] = useState('')
   const [isPending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
 
   const handleSubmit = (formData: FormData) => {
-    setMessage(null)
-    setStatus('idle')
+    setAriaMessage('')
 
     startTransition(async () => {
       const result = await createUserAction(formData)
-      setMessage(result.message)
-      setStatus(result.status)
+      const variant = result.status === 'success' ? 'success' : 'error'
+      setAriaMessage(result.message ?? '')
+
+      toast({
+        title: result.status === 'success' ? 'User created' : 'Unable to create user',
+        description: result.message,
+        variant,
+      })
 
       if (result.status === 'success') {
         formRef.current?.reset()
@@ -80,9 +84,9 @@ export function CreateUserForm() {
       <Button type="submit" disabled={isPending} className="bg-orange-600 text-white">
         {isPending ? 'Creating…' : 'Create user'}
       </Button>
-      {message && (
-        <p className={`text-sm ${status === 'error' ? 'text-red-600' : 'text-green-600'}`}>{message}</p>
-      )}
+      <p aria-live="polite" className="sr-only">
+        {ariaMessage}
+      </p>
     </form>
   )
 }

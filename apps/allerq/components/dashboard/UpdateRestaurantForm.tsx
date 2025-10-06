@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 
+import { useToast } from '@/components/ui/toast'
 import { updateRestaurantAction } from '@/app/restaurants/actions'
 import { Button } from '@components/ui/button'
 import { Input } from '@components/ui/input'
@@ -15,18 +16,24 @@ interface RestaurantOption {
 
 export function UpdateRestaurantForm({ restaurants }: { restaurants: RestaurantOption[] }) {
   const formRef = useRef<HTMLFormElement>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const { toast } = useToast()
+  const [ariaMessage, setAriaMessage] = useState('')
   const [isPending, startTransition] = useTransition()
 
   const handleSubmit = (formData: FormData) => {
-    setMessage(null)
-    setStatus('idle')
+    setAriaMessage('')
 
     startTransition(async () => {
       const result = await updateRestaurantAction(formData)
-      setMessage(result.message)
-      setStatus(result.status)
+      const variant = result.status === 'success' ? 'success' : 'error'
+      setAriaMessage(result.message ?? '')
+
+      toast({
+        title: result.status === 'success' ? 'Restaurant updated' : 'Unable to update restaurant',
+        description: result.message,
+        variant,
+      })
+
       if (result.status === 'success') {
         formRef.current?.reset()
       }
@@ -70,9 +77,9 @@ export function UpdateRestaurantForm({ restaurants }: { restaurants: RestaurantO
       <Button type="submit" disabled={isPending} className="bg-orange-600 text-white">
         {isPending ? 'Saving…' : 'Save changes'}
       </Button>
-      {message && (
-        <p className={`text-sm ${status === 'error' ? 'text-red-600' : 'text-green-600'}`}>{message}</p>
-      )}
+      <p aria-live="polite" className="sr-only">
+        {ariaMessage}
+      </p>
     </form>
   )
 }
