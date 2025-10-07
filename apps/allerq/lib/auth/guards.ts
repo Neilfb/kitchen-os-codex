@@ -4,27 +4,29 @@ import type { Session } from 'next-auth'
 import type { Capability, SessionUser } from '@/types/user'
 import { buildSessionUser, userHasCapability } from '@/lib/auth/permissions'
 
-function resolveIdentifier(rawUser: NonNullable<Session['user']>): string {
-  const candidate = (rawUser as { id?: unknown }).id
-  if (typeof candidate === 'string' && candidate.trim()) {
-    return candidate
-  }
-  if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-    return String(candidate)
-  }
-  if (typeof rawUser.email === 'string' && rawUser.email.trim()) {
-    return rawUser.email
-  }
-  return ''
-}
-
 export function requireUser(session: Session | null | undefined): SessionUser {
   const rawUser = session?.user
   if (!rawUser || !rawUser.email) {
     redirect('/sign-in')
   }
 
-  const identifier = resolveIdentifier(rawUser)
+  const candidateId = (rawUser as { id?: unknown }).id
+  let identifier = ''
+  if (typeof candidateId === 'string' && candidateId.trim()) {
+    identifier = candidateId.trim()
+  } else if (typeof candidateId === 'number' && Number.isFinite(candidateId)) {
+    identifier = String(candidateId)
+  } else if (typeof rawUser.email === 'string' && rawUser.email.trim()) {
+    identifier = rawUser.email.trim()
+  }
+
+  const userIdCandidate = (rawUser as { ncdbUserId?: number | string }).ncdbUserId
+  const normalizedNcdbId =
+    typeof userIdCandidate === 'number'
+      ? userIdCandidate
+      : typeof userIdCandidate === 'string' && userIdCandidate.trim()
+      ? Number(userIdCandidate.trim())
+      : undefined
 
   if (!identifier) {
     redirect('/sign-in')
@@ -37,6 +39,7 @@ export function requireUser(session: Session | null | undefined): SessionUser {
     role: rawUser.role,
     assignedRestaurants: rawUser.assignedRestaurants,
     capabilities: rawUser.capabilities,
+    userId: normalizedNcdbId,
   })
 }
 

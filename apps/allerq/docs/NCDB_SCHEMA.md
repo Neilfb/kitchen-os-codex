@@ -40,6 +40,9 @@ restaurants
   external_id varchar(255) UNIQUE
 ```
 
+Notes:
+- `/create/restaurants` frequently returns `{ status: 'success', id, message }` without a `data` payload. Fetch the record separately (or accept the ID) before treating the call as failed.
+
 ## Menus
 ```
 menus
@@ -84,15 +87,25 @@ Notes:
 
 ## Supporting Tables
 ```
-analytics            # events linked to restaurants/menus
-menu_categories      # grouping for menu items
-menu_uploads         # files processed by AI
-qr_codes             # QR codes per restaurant/menu
-subscriptions        # plan/status per restaurant
+analytics                  # events linked to restaurants/menus
+menu_categories            # grouping for menu items
+menu_uploads               # files processed by AI
+qr_codes                   # QR codes per restaurant/menu
+subscriptions              # plan/status per restaurant
+user_restaurant_assignments
+  id                int(11) PK, NOT NULL
+  user_id           int(11) NOT NULL             -- FK to users.id
+  restaurant_id     int(11) NOT NULL             -- FK to restaurants.id
+  role              enum('owner','manager') NOT NULL
+  created_at        bigint(20) NOT NULL
+  updated_at        bigint(20)
+  UNIQUE KEY idx_user_restaurant (user_id, restaurant_id)
 ```
 
 ## Joins
 - `menus.restaurant_id = restaurants.id`
 - `menu_items.menu_id = menus.id`
+- `user_restaurant_assignments.restaurant_id = restaurants.id`
+- `user_restaurant_assignments.user_id = users.id`
 
 Keep this file updated when the NCDB schema changes.

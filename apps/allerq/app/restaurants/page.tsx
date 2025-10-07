@@ -11,11 +11,46 @@ import { authOptions } from '@/lib/auth/nextAuth'
 import { getRestaurants } from '@/lib/ncb/getRestaurants'
 import { requireAnyCapability } from '@/lib/auth/guards'
 
+function filterRestaurantsForActor(restaurants: Awaited<ReturnType<typeof getRestaurants>>, actor: ReturnType<typeof requireAnyCapability>) {
+  if (actor.role === 'superadmin') {
+    return restaurants
+  }
+
+  const assignedIds = new Set(
+    actor.assignedRestaurants
+      .map((value) => String(value))
+      .filter((value) => value && value !== 'null' && value !== 'undefined')
+  )
+  const normalizedActorId = actor.id.toString()
+  const normalizedActorEmail = actor.email.toLowerCase()
+  const normalizedActorNcdbId = Number.isFinite(actor.ncdbUserId) && actor.ncdbUserId > 0 ? actor.ncdbUserId.toString() : null
+
+  return restaurants.filter((restaurant) => {
+    const restaurantId = String(restaurant.id)
+    if (assignedIds.has(restaurantId)) {
+      return true
+    }
+
+    if (typeof restaurant.owner_id === 'string' && restaurant.owner_id.trim()) {
+      const owner = restaurant.owner_id.trim().toLowerCase()
+      if (normalizedActorNcdbId && owner === normalizedActorNcdbId) {
+        return true
+      }
+      if (owner === normalizedActorId || owner === normalizedActorEmail) {
+        return true
+      }
+    }
+
+    return false
+  })
+}
+
 export default async function RestaurantsPage() {
   const session = await getServerSession(authOptions)
-  requireAnyCapability(session, ['restaurant.manage:any', 'restaurant.create'])
+  const actor = requireAnyCapability(session, ['restaurant.manage:any', 'restaurant.create'])
 
   const restaurants = await getRestaurants()
+  const scopedRestaurants = filterRestaurantsForActor(restaurants, actor)
 
   return (
     <PageLayout
@@ -70,7 +105,7 @@ export default async function RestaurantsPage() {
         title="Update a restaurant"
         description="Choose an existing venue to edit its details."
       >
-        <UpdateRestaurantForm restaurants={restaurants} />
+        <UpdateRestaurantForm restaurants={scopedRestaurants} />
       </Section>
 
       <Section
@@ -78,7 +113,7 @@ export default async function RestaurantsPage() {
         title="Delete a restaurant"
         description="Remove a venue when access is no longer required."
       >
-        <DeleteRestaurantForm restaurants={restaurants} />
+        <DeleteRestaurantForm restaurants={scopedRestaurants} />
       </Section>
 
       <Section
@@ -97,7 +132,7 @@ export default async function RestaurantsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {restaurants.map((restaurant) => (
+              {scopedRestaurants.map((restaurant) => (
                 <tr key={restaurant.id} className="hover:bg-orange-50/40">
                   <td className="px-6 py-3 font-medium text-slate-900">{restaurant.name}</td>
                   <td className="px-6 py-3 text-slate-600">{restaurant.owner_id}</td>
@@ -107,10 +142,12 @@ export default async function RestaurantsPage() {
                   </td>
                 </tr>
               ))}
-              {restaurants.length === 0 && (
+              {scopedRestaurants.length === 0 && (
                 <tr>
                   <td className="px-6 py-8 text-center text-slate-500" colSpan={4}>
-                    No restaurants found.
+                    {actor.role === 'superadmin'
+                      ? 'No restaurants found.'
+                      : 'No restaurants have been assigned to your account yet.'}
                   </td>
                 </tr>
               )}

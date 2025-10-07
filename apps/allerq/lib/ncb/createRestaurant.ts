@@ -1,5 +1,6 @@
 import axios from 'axios'
 
+import { getRestaurantById } from './getRestaurantById'
 import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
 import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
 
@@ -12,7 +13,7 @@ export interface CreateRestaurantPayload {
   website?: string
   cuisine_type?: string
   owner_id: string
-  logo?: string
+  logo_url?: string
   cover_image?: string
 }
 
@@ -28,21 +29,19 @@ export async function createRestaurant(payload: CreateRestaurantPayload): Promis
     throw new Error('Restaurant owner_id is required')
   }
 
+  const now = Date.now()
+
   const body = {
     secret_key: NCDB_SECRET_KEY,
     name,
-    description: payload.description ?? '',
     address: payload.address ?? '',
     phone: payload.phone ?? '',
     email: payload.email ?? '',
     website: payload.website ?? '',
-    cuisine_type: payload.cuisine_type ?? '',
     owner_id: ownerId,
-    logo: payload.logo ?? '',
-    cover_image: payload.cover_image ?? '',
-    is_active: 1,
-    created_at: Date.now(),
-    updated_at: Date.now(),
+    logo_url: payload.logo_url ?? '',
+    created_at: now,
+    updated_at: now,
   }
 
   console.log('[createRestaurant] sending payload', {
@@ -74,8 +73,71 @@ export async function createRestaurant(payload: CreateRestaurantPayload): Promis
       return restaurantRecord
     }
 
-    throw new Error('Restaurant creation failed')
+    if (status === 'success') {
+      const idRaw = response.data?.id ?? response.data?.record_id
+      const parsedId = typeof idRaw === 'string' ? Number(idRaw) : idRaw
+      const restaurantId = Number.isFinite(parsedId) ? Number(parsedId) : null
+
+      if (restaurantId !== null) {
+        const record = await getRestaurantById({ id: restaurantId })
+        if (record) {
+          return record
+        }
+
+        console.warn('[createRestaurant] unable to fetch newly created restaurant', {
+          restaurantId,
+          response: response.data,
+        })
+
+        const fallbackRecord = ensureParseSuccess(
+          RestaurantRecordSchema,
+          {
+            id: restaurantId,
+            name,
+            description: '',
+            address: payload.address ?? '',
+            phone: payload.phone ?? '',
+            email: payload.email ?? '',
+            website: payload.website ?? '',
+            cuisine_type: payload.cuisine_type ?? '',
+            owner_id: ownerId,
+            logo: '',
+            cover_image: '',
+            logo_url: payload.logo_url ?? '',
+            region: '',
+            location: '',
+            is_active: true,
+            created_at: body.created_at,
+            updated_at: body.updated_at,
+            external_id: '',
+          },
+          'createRestaurant fallback record'
+        )
+
+        return fallbackRecord
+      }
+
+      console.warn('[createRestaurant] success response missing record payload', response.data)
+      throw new Error('Restaurant created but record payload missing in NCDB response')
+    }
+
+    const message =
+      typeof response.data?.message === 'string' && response.data.message.trim()
+        ? response.data.message.trim()
+        : typeof response.data?.error?.message === 'string' && response.data.error.message.trim()
+          ? response.data.error.message.trim()
+          : null
+
+    console.error('[createRestaurant] unexpected response', {
+      status,
+      data: response.data,
+    })
+
+    throw new Error(message || 'Restaurant creation failed')
   } catch (error) {
+    if (axios.isAxiosError?.(error) && error.response?.data) {
+      console.error('[createRestaurant] NCDB error response', error.response.data)
+    }
     throw extractNcdbError(error)
   }
 }

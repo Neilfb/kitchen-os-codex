@@ -138,17 +138,25 @@ export function buildSessionUser(partial: {
   role?: Role | string | null
   assignedRestaurants?: unknown
   capabilities?: unknown
+  userId?: number | string | null
+  assignmentRestaurants?: string[]
 }): SessionUser {
   const roleCandidate = (partial.role ?? 'manager') as Role
   const normalizedRole: Role = roleCandidate === 'superadmin' || roleCandidate === 'admin' ? roleCandidate : 'manager'
-  const assignedRestaurants = normalizeAssignedRestaurants(partial.assignedRestaurants)
+  const directAssignments = normalizeAssignedRestaurants(partial.assignedRestaurants)
+  const assignmentRestaurants = Array.isArray(partial.assignmentRestaurants)
+    ? partial.assignmentRestaurants.map((value) => value.toString())
+    : []
+  const assignedRestaurants = Array.from(new Set([...directAssignments, ...assignmentRestaurants]))
   const capabilities = sanitizeCapabilities(partial.capabilities, normalizedRole)
+  const ncdbUserId = partial.userId !== null && partial.userId !== undefined ? Number(partial.userId) : NaN
 
   return {
     id: partial.id,
     email: partial.email.toLowerCase(),
     name: partial.name ?? undefined,
     role: normalizedRole,
+    ncdbUserId: Number.isFinite(ncdbUserId) ? ncdbUserId : 0,
     assignedRestaurants,
     capabilities,
   }

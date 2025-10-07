@@ -12,6 +12,7 @@ import { getRestaurants } from '@/lib/ncb/getRestaurants'
 import { getUsers } from '@/lib/ncb/getUsers'
 import { requireUser } from '@/lib/auth/guards'
 import { userHasCapability } from '@/lib/auth/permissions'
+import { getUserRestaurantAssignments } from '@/lib/ncb/userRestaurantAssignments'
 import type { Capability } from '@/types/user'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -27,12 +28,68 @@ const ADMIN_CAPABILITIES: Capability[] = [
   'user.manage:own',
 ]
 
+function scopeRestaurants(
+  restaurants: Awaited<ReturnType<typeof getRestaurants>>,
+  user: ReturnType<typeof requireUser>
+) {
+  if (user.role === 'superadmin') {
+    return restaurants
+  }
+
+  const assignedIds = new Set(user.assignedRestaurants.map((value) => String(value)))
+  const normalizedId = user.id.toString()
+  const normalizedEmail = user.email.toLowerCase()
+  const normalizedNcdbId = user.ncdbUserId > 0 ? user.ncdbUserId.toString() : ''
+
+  return restaurants.filter((restaurant) => {
+    const restaurantId = String(restaurant.id)
+    if (assignedIds.has(restaurantId)) {
+      return true
+    }
+
+    if (typeof restaurant.owner_id === 'string') {
+      const owner = restaurant.owner_id.trim().toLowerCase()
+      if (
+        owner &&
+        (owner === normalizedId || owner === normalizedEmail || (normalizedNcdbId && owner === normalizedNcdbId))
+      ) {
+        return true
+      }
+    }
+
+    return false
+  })
+}
+
+function scopeUsers(
+  users: Awaited<ReturnType<typeof getUsers>>,
+  user: ReturnType<typeof requireUser>,
+  allowedUserIds: Set<number>
+) {
+  if (user.role === 'superadmin') {
+    return users
+  }
+
+  return users.filter((platformUser) => {
+    const platformUserId = platformUser.id !== undefined && platformUser.id !== null ? Number(platformUser.id) : NaN
+    if (platformUser.role !== 'manager' && platformUserId !== user.ncdbUserId) {
+      return false
+    }
+
+    if (Number.isFinite(platformUserId) && allowedUserIds.has(platformUserId)) {
+      return true
+    }
+
+    return false
+  })
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   const user = requireUser(session)
   const userRoleLabel = ROLE_LABEL[user.role] ?? user.role
 
-  const [restaurants, users] = await Promise.all([
+  const [restaurantRecords, userRecords] = await Promise.all([
     getRestaurants().catch((error) => {
       console.error('[dashboard] failed to load restaurants', error)
       return []
@@ -44,6 +101,33 @@ export default async function DashboardPage() {
   ])
 
   const isAdmin = ADMIN_CAPABILITIES.some((capability) => userHasCapability(user, capability))
+  const isSuperadmin = user.role === 'superadmin'
+  const restaurants = scopeRestaurants(restaurantRecords, user)
+
+  const actorRestaurantIds = Array.from(new Set(user.assignedRestaurants.map((value) => value.toString()))).filter(
+    (value) => value.length > 0
+  )
+
+  const assignmentGroups = await Promise.all(
+    actorRestaurantIds.map((restaurantId) =>
+      getUserRestaurantAssignments({ restaurantId, role: 'manager' })
+    )
+  )
+
+  const allowedUserIds = new Set<number>()
+  if (!isSuperadmin && user.ncdbUserId > 0) {
+    allowedUserIds.add(user.ncdbUserId)
+  }
+
+  assignmentGroups.forEach((group) => {
+    group.forEach((assignment) => {
+      if (Number.isFinite(assignment.user_id)) {
+        allowedUserIds.add(assignment.user_id)
+      }
+    })
+  })
+
+  const users = scopeUsers(userRecords, user, allowedUserIds)
 
   return (
     <PageLayout
@@ -109,31 +193,45 @@ export default async function DashboardPage() {
 
       <Section
         id="recent-data"
-        title="Latest activity"
-        description="A snapshot of the most recent restaurants and users."
+        title={isSuperadmin ? 'Latest activity' : 'Your recent activity'}
+        description={
+          isSuperadmin
+            ? 'A snapshot of the most recent restaurants and users.'
+            : 'Only the data assigned to your account is shown here.'
+        }
       >
         <div className="grid gap-6 lg:grid-cols-2">
           <DataList
-            title="Restaurants"
-            emptyState="No restaurants yet."
-            footerLink={isAdmin ? { href: '/restaurants', label: 'View all restaurants' } : undefined}
+            title={isSuperadmin ? 'Restaurants' : 'Your restaurants'}
+            emptyState={
+              isSuperadmin
+                ? 'No restaurants yet.'
+                : 'No restaurants assigned to your account yet.'
+            }
+            footerLink={isAdmin ? { href: '/restaurants', label: 'Open restaurants' } : undefined}
             items={restaurants.slice(0, 6).map((restaurant) => ({
               id: restaurant.id,
               primary: restaurant.name,
-              secondary: restaurant.owner_id ? `Owner: ${restaurant.owner_id}` : 'Owner pending',
+              secondary: restaurant.owner_id ? `Owner: ${restaurant.owner_id}` : undefined,
             }))}
           />
 
-          <DataList
-            title="Users"
-            emptyState="No users yet."
-            footerLink={isAdmin ? { href: '/users', label: 'View all users' } : undefined}
-            items={users.slice(0, 6).map((platformUser) => ({
-              id: platformUser.id ?? platformUser.email,
-              primary: platformUser.display_name ?? platformUser.email,
-              secondary: platformUser.role ? `Role: ${platformUser.role}` : 'Role pending',
-            }))}
-          />
+          {isSuperadmin || userHasCapability(user, 'user.manage:any') || userHasCapability(user, 'user.manage:own') ? (
+            <DataList
+              title={isSuperadmin ? 'Users' : 'Managers'}
+              emptyState={
+                isSuperadmin
+                  ? 'No users yet.'
+                  : 'No managers have been invited yet.'
+              }
+              footerLink={isAdmin ? { href: '/users', label: 'Open users' } : undefined}
+              items={users.slice(0, 6).map((platformUser) => ({
+                id: platformUser.id ?? platformUser.email,
+                primary: platformUser.display_name ?? platformUser.email,
+                secondary: platformUser.role ? `Role: ${platformUser.role}` : undefined,
+              }))}
+            />
+          ) : null}
         </div>
       </Section>
 

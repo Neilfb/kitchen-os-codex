@@ -16,6 +16,7 @@ import {
   normalizeAssignedRestaurants,
   sanitizeCapabilities,
 } from '@/lib/auth/permissions'
+import { getUserRestaurantAssignments } from '@/lib/ncb/userRestaurantAssignments'
 import type { Capability, Role } from '@/types/user'
 
 export const authOptions: NextAuthOptions = {
@@ -45,12 +46,19 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid credentials')
         }
 
+        const assignments = user.id
+          ? await getUserRestaurantAssignments({ userId: Number(user.id) })
+          : []
+        const assignmentRestaurantIds = assignments.map((assignment) => assignment.restaurant_id.toString())
+
         const sessionUser = buildSessionUser({
           id: String(user.id ?? user.email),
           email: user.email,
           name: user.display_name,
           role: user.role as Role,
           assignedRestaurants: user.assigned_restaurants,
+          assignmentRestaurants: assignmentRestaurantIds,
+          userId: user.id,
         })
 
         return {
@@ -58,6 +66,7 @@ export const authOptions: NextAuthOptions = {
           email: sessionUser.email,
           name: sessionUser.name,
           role: sessionUser.role,
+          ncdbUserId: sessionUser.ncdbUserId,
           assignedRestaurants: sessionUser.assignedRestaurants,
           capabilities: sessionUser.capabilities,
         }
@@ -77,6 +86,7 @@ export const authOptions: NextAuthOptions = {
         token.role = role
         token.assignedRestaurants = normalizeAssignedRestaurants(user.assignedRestaurants)
         token.capabilities = sanitizeCapabilities(user.capabilities, role)
+        token.ncdbUserId = typeof user.ncdbUserId === 'number' ? user.ncdbUserId : undefined
       } else {
         const role = (token.role as Role) ?? 'manager'
         token.assignedRestaurants = normalizeAssignedRestaurants(token.assignedRestaurants)
@@ -90,6 +100,9 @@ export const authOptions: NextAuthOptions = {
         session.user.role = role
         session.user.assignedRestaurants = normalizeAssignedRestaurants(token.assignedRestaurants)
         session.user.capabilities = sanitizeCapabilities(token.capabilities, role)
+        if (typeof token.ncdbUserId === 'number') {
+          session.user.ncdbUserId = token.ncdbUserId
+        }
       }
       return session
     },

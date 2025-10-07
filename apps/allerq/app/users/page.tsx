@@ -10,12 +10,63 @@ import { DeleteUserForm } from '@/components/dashboard/DeleteUserForm'
 import { authOptions } from '@/lib/auth/nextAuth'
 import { getUsers } from '@/lib/ncb/getUsers'
 import { requireAnyCapability } from '@/lib/auth/guards'
+import { getUserRestaurantAssignments } from '@/lib/ncb/userRestaurantAssignments'
+
+function scopeUsers(
+  users: Awaited<ReturnType<typeof getUsers>>,
+  actor: ReturnType<typeof requireAnyCapability>,
+  allowedUserIds: Set<number>
+) {
+  if (actor.role === 'superadmin') {
+    return users
+  }
+
+  return users.filter((user) => {
+    const numericId = user.id !== undefined && user.id !== null ? Number(user.id) : NaN
+
+    if (user.role !== 'manager' && numericId !== actor.ncdbUserId) {
+      return false
+    }
+
+    if (Number.isFinite(numericId) && allowedUserIds.has(Number(numericId))) {
+      return true
+    }
+    return false
+  })
+}
 
 export default async function UsersPage() {
   const session = await getServerSession(authOptions)
-  requireAnyCapability(session, ['user.manage:any', 'user.manage:own'])
+  const actor = requireAnyCapability(session, ['user.manage:any', 'user.manage:own'])
 
-  const users = await getUsers()
+  const actorRestaurantIds = Array.from(new Set(actor.assignedRestaurants.map((value) => value.toString()))).filter(
+    (value) => value.length > 0
+  )
+
+  const [users, assignmentGroups] = await Promise.all([
+    getUsers(),
+    Promise.all(
+      actorRestaurantIds.map((restaurantId) =>
+        getUserRestaurantAssignments({ restaurantId, role: 'manager' })
+      )
+    ),
+  ])
+
+  const allowedUserIds = new Set<number>()
+
+  if (actor.role !== 'superadmin' && actor.ncdbUserId > 0) {
+    allowedUserIds.add(actor.ncdbUserId)
+  }
+
+  assignmentGroups.forEach((group) => {
+    group.forEach((assignment) => {
+      if (Number.isFinite(assignment.user_id)) {
+        allowedUserIds.add(assignment.user_id)
+      }
+    })
+  })
+
+  const scopedUsers = scopeUsers(users, actor, allowedUserIds)
 
   return (
     <PageLayout
@@ -70,7 +121,7 @@ export default async function UsersPage() {
         title="Update a user"
         description="Select an existing account to edit."
       >
-        <UpdateUserForm users={users} />
+        <UpdateUserForm users={scopedUsers} />
       </Section>
 
       <Section
@@ -78,7 +129,7 @@ export default async function UsersPage() {
         title="Delete a user"
         description="Remove access when a teammate leaves the business."
       >
-        <DeleteUserForm users={users} />
+        <DeleteUserForm users={scopedUsers} />
       </Section>
 
       <Section
@@ -97,7 +148,7 @@ export default async function UsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {users.map((platformUser) => (
+              {scopedUsers.map((platformUser) => (
                 <tr key={platformUser.id ?? platformUser.email} className="hover:bg-orange-50/40">
                   <td className="px-6 py-3 font-medium text-slate-900">
                     {platformUser.display_name ?? platformUser.email}
@@ -113,7 +164,7 @@ export default async function UsersPage() {
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && (
+              {scopedUsers.length === 0 && (
                 <tr>
                   <td className="px-6 py-8 text-center text-slate-500" colSpan={4}>
                     No users found.

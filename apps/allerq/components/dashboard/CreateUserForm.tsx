@@ -1,19 +1,45 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
+import { useSession } from 'next-auth/react'
 
 import { useToast } from '@/components/ui/toast'
 import { createUserAction } from '@/app/users/actions'
 import { Button } from '@components/ui/button'
 import { Input } from '@components/ui/input'
+import { getAssignableRolesFor } from '@/lib/auth/permissions'
+import type { Role } from '@/types/user'
 
-const ROLES = [
-  { value: 'manager', label: 'Manager' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'superadmin', label: 'Superadmin' },
-] as const
+const ROLE_LABEL: Record<Role, string> = {
+  superadmin: 'Superadmin',
+  admin: 'Admin',
+  manager: 'Manager',
+}
+
+function resolveAssignableRoles(actorRole: Role): Role[] {
+  const assignable = getAssignableRolesFor(actorRole)
+  if (assignable.length > 0) {
+    return assignable
+  }
+  return ['manager']
+}
+
+function getDefaultRole(roles: Role[]): Role {
+  if (roles.includes('manager')) {
+    return 'manager'
+  }
+  if (roles.includes('admin')) {
+    return 'admin'
+  }
+  return roles[0] ?? 'manager'
+}
 
 export function CreateUserForm() {
+  const { data } = useSession()
+  const actorRole = ((data?.user?.role ?? 'manager') as Role) ?? 'manager'
+  const assignableRoles = useMemo(() => resolveAssignableRoles(actorRole), [actorRole])
+  const defaultRole = useMemo(() => getDefaultRole(assignableRoles), [assignableRoles])
+
   const { toast } = useToast()
   const [ariaMessage, setAriaMessage] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -70,15 +96,18 @@ export function CreateUserForm() {
           <select
             id="role"
             name="role"
-            defaultValue="manager"
+            defaultValue={defaultRole}
             className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
           >
-            {ROLES.map((role) => (
-              <option key={role.value} value={role.value}>
-                {role.label}
+            {assignableRoles.map((role) => (
+              <option key={role} value={role}>
+                {ROLE_LABEL[role]}
               </option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-slate-500">
+            You can assign: {assignableRoles.map((role) => ROLE_LABEL[role]).join(', ')}
+          </p>
         </div>
       </div>
       <Button type="submit" disabled={isPending} className="bg-orange-600 text-white">

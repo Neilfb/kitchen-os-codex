@@ -7,6 +7,7 @@ declare module 'next-auth' {
       role?: Role
       assignedRestaurants?: string[]
       capabilities?: Capability[]
+      ncdbUserId?: number
     }
   }
 
@@ -14,6 +15,7 @@ declare module 'next-auth' {
     role?: Role
     assignedRestaurants?: string[]
     capabilities?: Capability[]
+    ncdbUserId?: number
   }
 }
 
@@ -22,5 +24,6 @@ declare module 'next-auth/jwt' {
     role?: Role
     assignedRestaurants?: string[]
     capabilities?: Capability[]
+    ncdbUserId?: number
   }
 }
