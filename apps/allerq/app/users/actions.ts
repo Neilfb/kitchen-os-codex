@@ -10,19 +10,20 @@ import { updateUser } from '@/lib/ncb/updateUser'
 import { deleteUser } from '@/lib/ncb/deleteUser'
 import { requireAnyCapability } from '@/lib/auth/guards'
 import { ensureAssignableRole } from '@/lib/auth/permissions'
+import { validatePassword } from '@/lib/utils/validatePassword'
 import type { Role } from '@/types/user'
 
 const CreateUserSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().email('Valid email required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
   role: z.enum(['superadmin', 'admin', 'manager']).default('manager'),
 })
 
 const UpdateUserSchema = z.object({
   id: z.coerce.number().int().positive('User is required'),
   fullName: z.string().optional(),
-  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   role: z.enum(['superadmin', 'admin', 'manager']).optional(),
 })
 
@@ -41,6 +42,11 @@ export async function createUserAction(formData: FormData) {
   if (!parsed.success) {
     const message = parsed.error.issues[0]?.message ?? 'Invalid data'
     return { status: 'error' as const, message }
+  }
+
+  const passwordIssue = validatePassword(parsed.data.password)
+  if (passwordIssue) {
+    return { status: 'error' as const, message: passwordIssue }
   }
 
   try {
@@ -76,6 +82,13 @@ export async function updateUserAction(formData: FormData) {
   if (!parsed.success) {
     const message = parsed.error.issues[0]?.message ?? 'Invalid data'
     return { status: 'error' as const, message }
+  }
+
+  if (parsed.data.password) {
+    const passwordIssue = validatePassword(parsed.data.password)
+    if (passwordIssue) {
+      return { status: 'error' as const, message: passwordIssue }
+    }
   }
 
   try {

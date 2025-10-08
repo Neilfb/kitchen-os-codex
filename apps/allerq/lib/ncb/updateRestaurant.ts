@@ -1,7 +1,8 @@
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
+import { NCDB_API_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
 import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
+import { getRestaurantById } from './getRestaurantById'
 
 export interface UpdateRestaurantInput {
   id: number
@@ -14,6 +15,7 @@ export interface UpdateRestaurantInput {
   cuisine_type?: string
   owner_id?: string
   logo?: string
+  logo_url?: string
   cover_image?: string
   is_active?: boolean
 }
@@ -23,10 +25,7 @@ export async function updateRestaurant({ id, ...updates }: UpdateRestaurantInput
     throw new Error('A valid restaurant id is required to update a restaurant')
   }
 
-  const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
-    record_id: id,
-  }
+  const payload: Record<string, unknown> = {}
 
   if (typeof updates.name === 'string' && updates.name.trim()) payload.name = updates.name.trim()
   if (typeof updates.description === 'string') payload.description = updates.description
@@ -37,14 +36,13 @@ export async function updateRestaurant({ id, ...updates }: UpdateRestaurantInput
   if (typeof updates.cuisine_type === 'string') payload.cuisine_type = updates.cuisine_type
   if (typeof updates.owner_id === 'string' && updates.owner_id.trim()) payload.owner_id = updates.owner_id.trim()
   if (typeof updates.logo === 'string') payload.logo = updates.logo
+  if (typeof updates.logo_url === 'string') payload.logo_url = updates.logo_url
   if (typeof updates.cover_image === 'string') payload.cover_image = updates.cover_image
-  if (typeof updates.is_active === 'boolean') payload.is_active = updates.is_active ? 1 : 0
+  if (typeof updates.is_active === 'boolean') payload.is_active = updates.is_active
 
   payload.updated_at = Date.now()
 
-  const updatableKeys = Object.keys(payload).filter(
-    (key) => !['secret_key', 'record_id', 'updated_at'].includes(key)
-  )
+  const updatableKeys = Object.keys(payload).filter((key) => !['updated_at'].includes(key))
 
   if (updatableKeys.length === 0) {
     throw new Error('No updates supplied for restaurant record')
@@ -52,13 +50,12 @@ export async function updateRestaurant({ id, ...updates }: UpdateRestaurantInput
 
   console.log('[updateRestaurant] sending payload', {
     ...payload,
-    secret_key: '********',
   })
 
   try {
     const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/update/restaurants'),
+      method: 'put',
+      url: buildNcdbUrl(`/update/restaurants/${id}`),
       headers: {
         Authorization: `Bearer ${NCDB_API_KEY}`,
         'Content-Type': 'application/json',
@@ -69,8 +66,15 @@ export async function updateRestaurant({ id, ...updates }: UpdateRestaurantInput
     const status = response.data?.status
     const data = response.data?.data
 
-    if (status === 'success' && data) {
-      return ensureParseSuccess(RestaurantRecordSchema, data, 'updateRestaurant response')
+    if (status === 'success') {
+      if (data) {
+        return ensureParseSuccess(RestaurantRecordSchema, data, 'updateRestaurant response')
+      }
+
+      const refreshed = await getRestaurantById({ id })
+      if (refreshed) {
+        return refreshed
+      }
     }
 
     throw new Error('Failed to update restaurant')

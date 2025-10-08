@@ -1,12 +1,13 @@
-import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 
-import { SignOutButton } from '@/components/auth/SignOutButton'
-import { DashboardNavigation } from '@/components/dashboard/Navigation'
-import { PageLayout, Section, CardGrid } from '@/components/dashboard/PageLayout'
-import { ActionCard } from '@/components/dashboard/ActionCard'
+import Link from 'next/link'
 import { CreateUserForm } from '@/components/dashboard/CreateUserForm'
 import { CreateRestaurantForm } from '@/components/dashboard/CreateRestaurantForm'
+import { Section } from '@/components/dashboard/PageLayout'
+import { DashboardTopNav } from '@/components/dashboard/TopNav'
+import { UtilityStrip } from '@/components/dashboard/UtilityStrip'
+import { RestaurantsPane } from '@/components/dashboard/RestaurantsPane'
+import type { RestaurantCardModel } from '@/components/dashboard/RestaurantGrid'
 import { authOptions } from '@/lib/auth/nextAuth'
 import { getRestaurants } from '@/lib/ncb/getRestaurants'
 import { getUsers } from '@/lib/ncb/getUsers'
@@ -89,7 +90,10 @@ export default async function DashboardPage() {
   const user = requireUser(session)
   const userRoleLabel = ROLE_LABEL[user.role] ?? user.role
 
-  const [restaurantRecords, userRecords] = await Promise.all([
+  const [restaurantRecords, userRecords]: [
+    Awaited<ReturnType<typeof getRestaurants>>,
+    Awaited<ReturnType<typeof getUsers>>,
+  ] = await Promise.all([
     getRestaurants().catch((error) => {
       console.error('[dashboard] failed to load restaurants', error)
       return []
@@ -103,6 +107,15 @@ export default async function DashboardPage() {
   const isAdmin = ADMIN_CAPABILITIES.some((capability) => userHasCapability(user, capability))
   const isSuperadmin = user.role === 'superadmin'
   const restaurants = scopeRestaurants(restaurantRecords, user)
+
+  const ownerLabelLookup = new Map<string, string>()
+  userRecords.forEach((record) => {
+    const displayName = record.display_name || record.email
+    if (record.id !== undefined && record.id !== null) {
+      ownerLabelLookup.set(String(record.id), displayName)
+    }
+    ownerLabelLookup.set(record.email, displayName)
+  })
 
   const actorRestaurantIds = Array.from(new Set(user.assignedRestaurants.map((value) => value.toString()))).filter(
     (value) => value.length > 0
@@ -129,126 +142,161 @@ export default async function DashboardPage() {
 
   const users = scopeUsers(userRecords, user, allowedUserIds)
 
+  const activeRestaurantCount = restaurants.filter((restaurant) => restaurant.is_active !== false).length
+  const pendingInviteCount = 0 // Placeholder until invite status is tracked
+
+  const utilityItems = [
+    {
+      id: 'welcome',
+      label: 'Welcome back',
+      value: user.name ?? user.email,
+    },
+    {
+      id: 'role',
+      label: 'Role',
+      value: userRoleLabel,
+    },
+    {
+      id: 'active',
+      label: 'Active restaurants',
+      value: activeRestaurantCount,
+    },
+    {
+      id: 'invites',
+      label: 'Pending invites',
+      value: pendingInviteCount,
+    },
+    {
+      id: 'add',
+      label: 'Quick action',
+      value: '+ Add venue',
+      intent: 'primary' as const,
+      href: '#create-restaurant',
+    },
+  ]
+
+  const restaurantCards: RestaurantCardModel[] = restaurants.map((restaurant) => {
+    const status = deriveStatus(restaurant)
+    const ownerLabel =
+      ownerLabelLookup.get(restaurant.owner_id?.toString() ?? '') ??
+      ownerLabelLookup.get((restaurant.owner_id ?? '').toLowerCase()) ??
+      restaurant.owner_id ??
+      '—'
+
+    return {
+      id: Number(restaurant.id),
+      name: restaurant.name,
+      ownerLabel,
+      logoUrl: restaurant.logo_url || restaurant.logo || undefined,
+      statusLabel: status.label,
+      statusTone: status.tone,
+      subscriptionSummary: formatDateLabel('Created', restaurant.created_at),
+      menuUrl: `/menus?restaurant=${restaurant.id}`,
+      lastMenuSync: formatDateLabel('Updated', restaurant.updated_at),
+      qrScanTrend: undefined,
+    }
+  })
+
   return (
-    <PageLayout
-      title={`Welcome, ${user.name ?? user.email}`}
-      description={`Role: ${userRoleLabel}`}
-      navigation={<DashboardNavigation />}
-      headerActions={<SignOutButton className="bg-orange-600 text-white" />}
-    >
-      {isAdmin ? (
-        <Section
-          id="quick-actions"
-          title="Quick actions"
-          description="Jump straight to the admin tools you need."
-        >
-          <CardGrid>
-            <ActionCard
-              title="Add a restaurant"
-              description="Create a new venue record and assign an owner."
-              href="#create-restaurant"
-              cta="Open form"
-            />
-            <ActionCard
-              title="Add a user"
-              description="Invite a teammate and set their role."
-              href="#create-user"
-              cta="Open form"
-            />
-            <ActionCard
-              title="Manage restaurants"
-              description="Review every venue, edit details, or remove records."
-              href="/restaurants"
-              cta="Go to page"
-            />
-            <ActionCard
-              title="Manage users"
-              description="Update roles and clean up unused accounts."
-              href="/users"
-              cta="Go to page"
-            />
-          </CardGrid>
-        </Section>
-      ) : null}
+    <div className="min-h-screen bg-[var(--color-warm-grey)]">
+      <DashboardTopNav userName={user.name} userEmail={user.email} />
+      <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        <UtilityStrip items={utilityItems} />
 
-      {isAdmin ? (
-        <Section
-          id="create-restaurant"
-          title="Create a restaurant"
-          description="Capture the basics now and refine details later."
-        >
-          <CreateRestaurantForm />
-        </Section>
-      ) : null}
+        <RestaurantsPane
+          restaurants={restaurantCards}
+          owners={Array.from(ownerLabelLookup.values())}
+          isSuperadmin={isSuperadmin}
+        />
 
-      {isAdmin ? (
-        <Section
-          id="create-user"
-          title="Create a user"
-          description="Set a temporary password and share it securely."
-        >
-          <CreateUserForm />
-        </Section>
-      ) : null}
+        <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white/70 p-6 text-sm text-slate-600">
+          <p className="font-medium text-slate-900">Dashboard revamp in progress</p>
+          <p className="mt-2">
+            The restaurant card grid, filters, and notifications panel will land next. Existing admin tools remain
+            available below while we build the new experience.
+          </p>
+        </div>
 
-      <Section
-        id="recent-data"
-        title={isSuperadmin ? 'Latest activity' : 'Your recent activity'}
-        description={
-          isSuperadmin
-            ? 'A snapshot of the most recent restaurants and users.'
-            : 'Only the data assigned to your account is shown here.'
-        }
-      >
-        <div className="grid gap-6 lg:grid-cols-2">
-          <DataList
-            title={isSuperadmin ? 'Restaurants' : 'Your restaurants'}
-            emptyState={
+        <div id="create-restaurant" className="mt-8 space-y-6">
+          {isAdmin ? (
+            <Section
+              title="Create a restaurant"
+              description="Capture the basics now and refine details later."
+            >
+              <CreateRestaurantForm />
+            </Section>
+          ) : null}
+
+          {isAdmin ? (
+            <Section
+              id="create-user"
+              title="Create a user"
+              description="Set a temporary password and share it securely."
+            >
+              <CreateUserForm />
+            </Section>
+          ) : null}
+
+          <Section
+            id="recent-data"
+            title={isSuperadmin ? 'Latest activity' : 'Your recent activity'}
+            description={
               isSuperadmin
-                ? 'No restaurants yet.'
-                : 'No restaurants assigned to your account yet.'
+                ? 'A snapshot of the most recent restaurants and users.'
+                : 'Only the data assigned to your account is shown here.'
             }
-            footerLink={isAdmin ? { href: '/restaurants', label: 'Open restaurants' } : undefined}
-            items={restaurants.slice(0, 6).map((restaurant) => ({
-              id: restaurant.id,
-              primary: restaurant.name,
-              secondary: restaurant.owner_id ? `Owner: ${restaurant.owner_id}` : undefined,
-            }))}
-          />
+          >
+            <div className="grid gap-6 lg:grid-cols-2">
+              <DataList
+                title={isSuperadmin ? 'Restaurants' : 'Your restaurants'}
+                emptyState={
+                  isSuperadmin
+                    ? 'No restaurants yet.'
+                    : 'No restaurants assigned to your account yet.'
+                }
+                footerLink={isAdmin ? { href: '/restaurants', label: 'Open restaurants' } : undefined}
+                items={restaurants.slice(0, 6).map((restaurant) => ({
+                  id: restaurant.id,
+                  primary: restaurant.name,
+                  secondary: restaurant.owner_id ? `Owner: ${restaurant.owner_id}` : undefined,
+                }))}
+              />
 
-          {isSuperadmin || userHasCapability(user, 'user.manage:any') || userHasCapability(user, 'user.manage:own') ? (
-            <DataList
-              title={isSuperadmin ? 'Users' : 'Managers'}
-              emptyState={
-                isSuperadmin
-                  ? 'No users yet.'
-                  : 'No managers have been invited yet.'
-              }
-              footerLink={isAdmin ? { href: '/users', label: 'Open users' } : undefined}
-              items={users.slice(0, 6).map((platformUser) => ({
-                id: platformUser.id ?? platformUser.email,
-                primary: platformUser.display_name ?? platformUser.email,
-                secondary: platformUser.role ? `Role: ${platformUser.role}` : undefined,
-              }))}
-            />
+              {isSuperadmin || userHasCapability(user, 'user.manage:any') || userHasCapability(user, 'user.manage:own') ? (
+                <DataList
+                  title={isSuperadmin ? 'Users' : 'Managers'}
+                  emptyState={
+                    isSuperadmin
+                      ? 'No users yet.'
+                      : 'No managers have been invited yet.'
+                  }
+                  footerLink={isAdmin ? { href: '/users', label: 'Open users' } : undefined}
+                  items={users.slice(0, 6).map((platformUser) => ({
+                    id: platformUser.id ?? platformUser.email,
+                    primary: platformUser.display_name ?? platformUser.email,
+                    secondary: platformUser.role ? `Role: ${platformUser.role}` : undefined,
+                  }))}
+                />
+              ) : null}
+            </div>
+          </Section>
+
+          {user.role === 'manager' ? (
+            <Section
+              id="manager-tips"
+              title="Manager quick actions"
+              description="Keep menus sharp and allergen data trusted."
+            >
+              <ul className="space-y-2 text-sm text-slate-700">
+                <li>Review the menus assigned to you and flag gaps.</li>
+                <li>Ensure allergen tags stay accurate with every change.</li>
+                <li>Coordinate with staff on upcoming menu updates.</li>
+              </ul>
+            </Section>
           ) : null}
         </div>
-      </Section>
-
-      {user.role === 'manager' ? (
-        <Section
-          id="manager-tips"
-          title="Manager quick actions"
-          description="Keep menus sharp and allergen data trusted."
-        >
-          <ul className="space-y-2 text-sm text-slate-700">
-            <li>Review the menus assigned to you and flag gaps.</li>
-            <li>Ensure allergen tags stay accurate with every change.</li>
-            <li>Coordinate with staff on upcoming menu updates.</li>
-          </ul>
-        </Section>
-      ) : null}
-    </PageLayout>
+      </main>
+    </div>
   )
 }
 
@@ -294,4 +342,36 @@ function DataList({ title, emptyState, items, footerLink }: DataListProps) {
       ) : null}
     </article>
   )
+}
+
+function deriveStatus(
+  restaurant: Awaited<ReturnType<typeof getRestaurants>>[number]
+): { label: string; tone: 'active' | 'trial' | 'paused' } {
+  const isActive = restaurant.is_active !== false
+  if (!isActive) {
+    return { label: 'Paused', tone: 'paused' }
+  }
+
+  const createdAt = typeof restaurant.created_at === 'number' ? new Date(restaurant.created_at) : undefined
+  if (createdAt && Number.isFinite(createdAt.getTime())) {
+    const msSinceCreated = Date.now() - createdAt.getTime()
+    const daysSinceCreated = msSinceCreated / (1000 * 60 * 60 * 24)
+    if (daysSinceCreated <= 14) {
+      const daysLeft = Math.max(0, Math.ceil(14 - daysSinceCreated))
+      return { label: `Trial · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`, tone: 'trial' }
+    }
+  }
+
+  return { label: 'Active', tone: 'active' }
+}
+
+function formatDateLabel(prefix: string, timestamp?: number) {
+  if (!timestamp || Number.isNaN(Number(timestamp))) {
+    return undefined
+  }
+  const date = new Date(Number(timestamp))
+  if (!Number.isFinite(date.getTime())) {
+    return undefined
+  }
+  return `${prefix} ${date.toLocaleDateString()}`
 }

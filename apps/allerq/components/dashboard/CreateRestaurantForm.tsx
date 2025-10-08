@@ -197,20 +197,51 @@ export function CreateRestaurantForm() {
     >
       <h3 className="text-lg font-semibold text-slate-900">Add a restaurant</h3>
       <div className="grid gap-3 md:grid-cols-2">
-        <Input name="name" placeholder="Restaurant name" required aria-label="Restaurant name" />
+        <div className="flex flex-col">
+          <label htmlFor="restaurant-name" className="text-sm font-medium text-slate-700">
+            Restaurant name
+          </label>
+          <Input
+            id="restaurant-name"
+            name="name"
+            placeholder="Restaurant name"
+            required
+            aria-label="Restaurant name"
+          />
+        </div>
         {actorRole === 'superadmin' ? (
-          <Input name="owner_id" placeholder="Owner ID" required aria-label="Owner ID" />
+          <div className="flex flex-col">
+            <label htmlFor="owner-id" className="text-sm font-medium text-slate-700">
+              AllerQ Account ID
+            </label>
+            <Input
+              id="owner-id"
+              name="owner_id"
+              placeholder="AllerQ Account ID"
+              required
+              aria-label="AllerQ Account ID"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Use the owner&apos;s AllerQ Account ID or email address.
+            </p>
+          </div>
         ) : (
           <div className="md:col-span-1">
             <input type="hidden" name="owner_id" value={ownerId} />
             <p className="text-sm text-slate-600">
-              Owner ID will be set to <span className="font-medium">{ownerId || 'your account'}</span>
+              AllerQ Account ID: <span className="font-medium">{ownerId || 'your account'}</span>
             </p>
           </div>
         )}
         <Input name="email" type="email" placeholder="Email (optional)" aria-label="Email" />
         <Input name="phone" placeholder="Phone (optional)" aria-label="Phone" />
-        <Input name="address" placeholder="Address (optional)" aria-label="Address" className="md:col-span-2" />
+        <Input
+          name="address"
+          placeholder="Street address"
+          required
+          aria-label="Street address"
+          className="md:col-span-2"
+        />
         <Input name="website" placeholder="Website (optional)" aria-label="Website" />
         <div className="md:col-span-2">
           <p className="mb-2 text-sm font-medium text-slate-700">Logo</p>

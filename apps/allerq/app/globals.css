@@ -3,7 +3,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles (optional) */
+:root {
+  --color-primary: #fe4e01;
+  --color-primary-dark: #e65500;
+  --color-primary-light: #ff8c3a;
+  --color-accent-amber: #ffc144;
+  --color-accent-coral: #ff6a4d;
+  --color-accent-magenta: #d04fff;
+  --color-slate: #5a5a5a;
+  --color-charcoal: #2b2b2b;
+  --color-midnight: #0f172a;
+  --color-warm-gray: #e2e8f0;
+  --color-light-gray: #f5f5f5;
+  --color-white: #ffffff;
+
+  --color-card-bg: var(--color-white);
+  --shadow-card: 0 12px 24px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.08);
+  --shadow-card-hover: 0 18px 30px rgba(15, 23, 42, 0.14);
+  --radius-card: 1rem;
+
+  /* Legacy aliases */
+  --color-allerq-orange: var(--color-primary);
+  --color-allerq-orange-strong: var(--color-primary-dark);
+  --color-midnight-slate: var(--color-midnight);
+  --color-soft-slate: var(--color-charcoal);
+  --color-warm-grey: var(--color-warm-gray);
+}
+
 body {
-  @apply bg-white text-black;
+  background: var(--color-light-gray);
+  color: var(--color-charcoal);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--color-charcoal);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+a {
+  color: var(--color-primary);
+  transition: color 150ms ease;
+}
+
+a:hover {
+  color: var(--color-primary-dark);
 }

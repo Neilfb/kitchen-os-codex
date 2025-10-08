@@ -128,7 +128,7 @@ export default function SignupPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 shadow-sm transition duration-150 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316]/40"
                 placeholder="Enter a secure password"
-                minLength={8}
+                minLength={6}
               />
               <button
                 type="button"
@@ -188,7 +188,7 @@ function PasswordStrengthHint({ password }: { password: string }) {
       </div>
       <p className={colorClass}>{label}</p>
       <p className="text-xs text-slate-500">
-        Use at least 12 characters with a mix of upper/lowercase letters, numbers, and symbols for a stronger password.
+        Minimum 6 characters including uppercase, lowercase, numbers, and symbols.
       </p>
     </div>
   )

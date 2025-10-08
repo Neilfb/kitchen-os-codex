@@ -81,14 +81,23 @@ export function CreateUserForm() {
           required
           aria-label="Email address"
         />
-        <Input
-          name="password"
-          type="password"
-          placeholder="Temporary password"
-          required
-          minLength={8}
-          aria-label="Password"
-        />
+        <div className="flex flex-col">
+          <label htmlFor="user-password" className="text-sm font-medium text-slate-700">
+            Temporary password
+          </label>
+          <Input
+            id="user-password"
+            name="password"
+            type="password"
+            placeholder="e.g. AllerQ!2"
+            required
+            minLength={6}
+            aria-label="Password"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Minimum 6 characters, including uppercase, lowercase, number, and symbol.
+          </p>
+        </div>
         <div className="flex flex-col">
           <label htmlFor="role" className="text-sm font-medium text-slate-700">
             Role

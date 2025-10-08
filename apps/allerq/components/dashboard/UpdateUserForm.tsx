@@ -89,7 +89,22 @@ export function UpdateUserForm({ users }: { users: UserOption[] }) {
           </select>
         </div>
         <Input name="fullName" placeholder="New name (optional)" aria-label="Full name" />
-        <Input name="password" type="password" placeholder="New password (optional)" aria-label="New password" />
+        <div className="flex flex-col">
+          <label htmlFor="update-user-password" className="text-sm font-medium text-slate-700">
+            New password (optional)
+          </label>
+          <Input
+            id="update-user-password"
+            name="password"
+            type="password"
+            placeholder="Optional: update password"
+            minLength={6}
+            aria-label="New password"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Must include uppercase, lowercase, number, and symbol (minimum 6 characters).
+          </p>
+        </div>
         {assignableRoles.length > 0 ? (
           <div className="flex flex-col">
             <label htmlFor="role" className="text-sm font-medium text-slate-700">

@@ -1,4 +1,4 @@
-const MIN_LENGTH = 8
+const MIN_LENGTH = 6
 const MAX_LENGTH = 64
 
 const LOWERCASE_REGEX = /[a-z]/

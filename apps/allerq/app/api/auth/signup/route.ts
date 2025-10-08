@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 
 import { createUser } from "@/lib/ncb/createUser";
+import { validatePassword } from "@/lib/utils/validatePassword";
 
 const ALLOWED_ROLES = ["superadmin", "admin", "manager"] as const;
 
@@ -41,6 +42,11 @@ function validatePayload(input: SignupPayload): NormalizedSignupPayload {
     password: input.password,
     fullName: input.fullName.trim(),
   };
+
+  const passwordIssue = validatePassword(normalized.password);
+  if (passwordIssue) {
+    throw new Error(passwordIssue);
+  }
 
   if (input.role !== undefined) {
     if (typeof input.role !== "string") {

@@ -24,7 +24,9 @@ const CreateRestaurantSchema = z.object({
     .optional(),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   phone: z.string().optional(),
-  address: z.string().optional(),
+  address: z
+    .string({ required_error: 'Address is required' })
+    .min(1, 'Address is required'),
   website: z.string().optional(),
   cuisine_type: z.string().optional(),
   logo_url: z.string().url('Invalid logo URL').optional().or(z.literal('')),
@@ -38,6 +40,7 @@ const UpdateRestaurantSchema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   website: z.string().optional(),
+  logo_url: z.string().url('Invalid logo URL').optional().or(z.literal('')),
 })
 
 export async function createRestaurantAction(formData: FormData) {
@@ -124,6 +127,7 @@ export async function createRestaurantAction(formData: FormData) {
     }
 
     revalidatePath('/restaurants')
+    revalidatePath('/dashboard')
 
     return {
       status: 'success' as const,
@@ -150,6 +154,7 @@ export async function updateRestaurantAction(formData: FormData) {
     phone: getFormString(formData, 'phone'),
     address: getFormString(formData, 'address'),
     website: getFormString(formData, 'website'),
+    logo_url: getFormString(formData, 'logo_url'),
   }
 
   const parsed = UpdateRestaurantSchema.safeParse(raw)
@@ -166,9 +171,16 @@ export async function updateRestaurantAction(formData: FormData) {
       phone: parsed.data.phone || undefined,
       address: parsed.data.address || undefined,
       website: parsed.data.website || undefined,
+      logo_url:
+        parsed.data.logo_url === undefined
+          ? undefined
+          : typeof parsed.data.logo_url === 'string'
+            ? parsed.data.logo_url.trim()
+            : undefined,
     })
 
     revalidatePath('/restaurants')
+    revalidatePath('/dashboard')
 
     return { status: 'success' as const, message: 'Restaurant updated successfully' }
   } catch (error) {
@@ -191,6 +203,7 @@ export async function deleteRestaurantAction(formData: FormData) {
   try {
     await deleteRestaurant({ id })
     revalidatePath('/restaurants')
+    revalidatePath('/dashboard')
     return { status: 'success' as const, message: 'Restaurant deleted successfully' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to delete restaurant'

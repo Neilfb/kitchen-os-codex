@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { NCDB_API_KEY, buildNcdbUrl, extractNcdbError } from './constants'
 
 export interface DeleteRestaurantPayload {
   id: number
@@ -11,28 +11,19 @@ export async function deleteRestaurant({ id }: DeleteRestaurantPayload): Promise
     throw new Error('A valid restaurant id is required to delete a restaurant')
   }
 
-  const payload = {
-    secret_key: NCDB_SECRET_KEY,
-    record_id: id,
-  }
-
-  console.log('[deleteRestaurant] sending payload', {
-    ...payload,
-    secret_key: '********',
-  })
+  console.log('[deleteRestaurant] sending request', { id })
 
   try {
     const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/delete/restaurants'),
+      method: 'delete',
+      url: buildNcdbUrl(`/delete/restaurants/${id}`),
       headers: {
         Authorization: `Bearer ${NCDB_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      data: payload,
     })
 
-    if (response.data.status === 'success') {
+    if (response.data?.status === 'success') {
       return true
     }
 
