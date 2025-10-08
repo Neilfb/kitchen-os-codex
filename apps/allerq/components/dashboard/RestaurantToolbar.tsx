@@ -32,15 +32,16 @@ export function RestaurantToolbar({
 }: RestaurantToolbarProps) {
   const [searchValue, setSearchValue] = useState(filters.query ?? '')
 
-  const ownerOptions = useMemo(
-    () =>
-      owners
-        .filter(Boolean)
-        .map((owner) => owner.trim())
-        .filter((owner, idx, all) => owner.length > 0 && all.indexOf(owner) === idx)
-        .sort((a, b) => a.localeCompare(b)),
-    [owners]
-  )
+  const ownerOptions = useMemo(() => {
+    const deduped = new Set<string>()
+    owners.forEach((owner) => {
+      const trimmed = owner.trim()
+      if (trimmed && trimmed !== 'null' && trimmed !== 'undefined') {
+        deduped.add(trimmed)
+      }
+    })
+    return Array.from(deduped).sort((a, b) => a.localeCompare(b))
+  }, [owners])
 
   const showBulkActions = selectedCount > 0
 
@@ -79,29 +80,31 @@ export function RestaurantToolbar({
               <option value="paused">Paused</option>
             </select>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs uppercase tracking-wide text-slate-500" htmlFor="owner-filter">
-              Owner
-            </label>
-            <select
-              id="owner-filter"
-              value={filters.owner ?? ''}
-              onChange={(event) =>
-                onFiltersChange({
-                  ...filters,
-                  owner: event.target.value || undefined,
-                })
-              }
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-200"
-            >
-              <option value="">All owners</option>
-              {ownerOptions.map((owner) => (
-                <option key={owner} value={owner}>
-                  {owner}
-                </option>
-              ))}
-            </select>
-          </div>
+          {ownerOptions.length > 1 ? (
+            <div className="flex items-center gap-2">
+              <label className="text-xs uppercase tracking-wide text-slate-500" htmlFor="owner-filter">
+                Owner
+              </label>
+              <select
+                id="owner-filter"
+                value={filters.owner ?? ''}
+                onChange={(event) =>
+                  onFiltersChange({
+                    ...filters,
+                    owner: event.target.value || undefined,
+                  })
+                }
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-200"
+              >
+                <option value="">All owners</option>
+                {ownerOptions.map((owner) => (
+                  <option key={owner} value={owner}>
+                    {owner}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-2 text-sm text-slate-500">

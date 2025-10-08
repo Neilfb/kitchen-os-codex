@@ -175,6 +175,8 @@ export default async function DashboardPage() {
     },
   ]
 
+  const ownerOptionsSet = new Set<string>()
+
   const restaurantCards: RestaurantCardModel[] = restaurants.map((restaurant) => {
     const status = deriveStatus(restaurant)
     const ownerLabel =
@@ -182,6 +184,9 @@ export default async function DashboardPage() {
       ownerLabelLookup.get((restaurant.owner_id ?? '').toLowerCase()) ??
       restaurant.owner_id ??
       '—'
+    if (ownerLabel && ownerLabel !== '—') {
+      ownerOptionsSet.add(ownerLabel)
+    }
 
     return {
       id: Number(restaurant.id),
@@ -205,7 +210,17 @@ export default async function DashboardPage() {
 
         <RestaurantsPane
           restaurants={restaurantCards}
-          owners={Array.from(ownerLabelLookup.values())}
+          owners={
+            isSuperadmin
+              ? Array.from(
+                  new Set(
+                    Array.from(ownerLabelLookup.values())
+                      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+                      .filter((value) => value && value !== 'null' && value !== 'undefined')
+                  )
+                )
+              : Array.from(ownerOptionsSet)
+          }
           isSuperadmin={isSuperadmin}
         />
 
