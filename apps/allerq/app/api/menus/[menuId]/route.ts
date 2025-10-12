@@ -21,7 +21,7 @@ const UpdateMenuBodySchema = z
   })
 
 interface RouteContext {
-  params: { id: string }
+  params: { menuId: string }
 }
 
 async function loadMenuWithGuard(menuId: number, session: Awaited<ReturnType<typeof getServerSession>>) {
@@ -39,7 +39,7 @@ async function loadMenuWithGuard(menuId: number, session: Awaited<ReturnType<typ
 
   const restaurantId = Number(menuRecord.restaurant_id)
   const restaurantRecord = await getRestaurantById({ id: restaurantId }).catch((error) => {
-    console.error('[api/menus/:id] failed to load restaurant', error)
+    console.error('[api/menus/:menuId] failed to load restaurant', error)
     return null
   })
 
@@ -55,7 +55,7 @@ async function loadMenuWithGuard(menuId: number, session: Awaited<ReturnType<typ
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  const menuId = Number(context.params.id)
+  const menuId = Number(context.params.menuId)
 
   if (!Number.isFinite(menuId) || menuId <= 0) {
     return NextResponse.json({ status: 'error', message: 'Invalid menu id' }, { status: 400 })
@@ -87,7 +87,7 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function PUT(request: Request, context: RouteContext) {
-  const menuId = Number(context.params.id)
+  const menuId = Number(context.params.menuId)
 
   if (!Number.isFinite(menuId) || menuId <= 0) {
     return NextResponse.json({ status: 'error', message: 'Invalid menu id' }, { status: 400 })
@@ -133,13 +133,13 @@ export async function PUT(request: Request, context: RouteContext) {
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update menu'
-    console.error('[api/menus/:id] update error', error)
+    console.error('[api/menus/:menuId] update error', error)
     return NextResponse.json({ status: 'error', message }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
-  const menuId = Number(context.params.id)
+  const menuId = Number(context.params.menuId)
 
   if (!Number.isFinite(menuId) || menuId <= 0) {
     return NextResponse.json({ status: 'error', message: 'Invalid menu id' }, { status: 400 })
@@ -161,7 +161,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     return NextResponse.json({ status: 'success' }, { status: 200 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to delete menu'
-    console.error('[api/menus/:id] delete error', error)
+    console.error('[api/menus/:menuId] delete error', error)
     return NextResponse.json({ status: 'error', message }, { status: 500 })
   }
 }
