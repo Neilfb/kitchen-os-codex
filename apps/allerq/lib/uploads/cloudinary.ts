@@ -86,3 +86,69 @@ export async function uploadLogoToCloudinary({
     uploadStream.end(buffer)
   })
 }
+
+export interface UploadMenuFileOptions {
+  buffer: Buffer
+  filename?: string
+  folder?: string
+  contentType?: string | null
+  resourceType?: 'raw' | 'auto'
+}
+
+export interface UploadMenuFileResult {
+  url: string
+  secureUrl: string
+  publicId: string
+  resourceType: string
+  bytes?: number
+  format?: string
+  originalFilename?: string
+}
+
+export async function uploadMenuFileToCloudinary({
+  buffer,
+  filename,
+  folder,
+  contentType,
+  resourceType = 'raw',
+}: UploadMenuFileOptions): Promise<UploadMenuFileResult> {
+  if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
+    throw new Error('Cloudinary credentials are not configured')
+  }
+
+  const targetFolder =
+    folder || process.env.CLOUDINARY_MENU_UPLOAD_FOLDER || process.env.CLOUDINARY_UPLOAD_FOLDER || 'allerq/menus'
+
+  return new Promise<UploadMenuFileResult>((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: targetFolder,
+        resource_type: resourceType,
+        overwrite: false,
+        unique_filename: true,
+        use_filename: Boolean(filename),
+        filename_override: filename,
+        context: contentType ? `contentType=${contentType}` : undefined,
+        type: 'upload',
+      },
+      (error, result) => {
+        if (error || !result) {
+          reject(error ?? new Error('Unknown Cloudinary upload error'))
+          return
+        }
+
+        resolve({
+          url: result.url ?? result.secure_url,
+          secureUrl: result.secure_url,
+          publicId: result.public_id,
+          resourceType: result.resource_type ?? resourceType,
+          bytes: result.bytes ?? undefined,
+          format: result.format ?? undefined,
+          originalFilename: result.original_filename ?? undefined,
+        })
+      }
+    )
+
+    uploadStream.end(buffer)
+  })
+}

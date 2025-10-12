@@ -18,7 +18,15 @@ const CreateMenuItemSchema = z.object({
   restaurant_id: z.union([z.number(), z.string()]).transform((value) => Number(value)),
   name: z.string().min(1),
   description: z.string().optional(),
-  price: z.union([z.number(), z.string()]).transform((value) => Number(value)),
+  price: z
+    .union([z.number(), z.string(), z.null(), z.undefined()])
+    .transform((value) => {
+      if (value === null || value === undefined || value === '') {
+        return undefined
+      }
+      return Number(value)
+    })
+    .optional(),
   category: z.string().optional(),
   allergens: z.string().optional(),
   dietary: z.string().optional(),
