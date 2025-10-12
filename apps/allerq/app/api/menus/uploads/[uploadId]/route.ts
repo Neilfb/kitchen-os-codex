@@ -28,7 +28,7 @@ export async function GET(
   {
     params,
   }: {
-    params: { id: string }
+    params: { uploadId: string }
   }
 ) {
   try {
@@ -47,7 +47,7 @@ export async function GET(
       )
     }
 
-    const uploadId = Number(params.id)
+    const uploadId = Number(params.uploadId)
     if (!Number.isFinite(uploadId) || uploadId <= 0) {
       return NextResponse.json({ status: 'error', message: 'Upload id must be a positive number' }, { status: 400 })
     }
@@ -74,7 +74,7 @@ export async function GET(
     }
 
     const restaurantRecord = await getRestaurantById({ id: targetRestaurantId }).catch((error) => {
-      console.error('[api/menus/uploads/:id] failed to load restaurant', error)
+      console.error('[api/menus/uploads/:uploadId] failed to load restaurant', error)
       return null
     })
 
@@ -111,7 +111,7 @@ export async function GET(
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load menu upload'
-    console.error('[api/menus/uploads/:id] error', error)
+    console.error('[api/menus/uploads/:uploadId] error', error)
     return NextResponse.json({ status: 'error', message }, { status: 500 })
   }
 }
