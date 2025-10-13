@@ -1,10 +1,9 @@
 'use server'
 
-import axios from 'axios'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { ncdbRequest, isNcdbSuccess } from './client'
 import { RoleEnum, UserRecordSchema, type Role } from '@/types/ncdb/user'
 
 export interface CreateUserInput {
@@ -78,41 +77,31 @@ export async function createUser({
 
   await UserRecordSchema.parseAsync(recordCandidate)
 
-  const payload = stripEmptyValues({
-    ...recordCandidate,
-    secret_key: NCDB_SECRET_KEY,
-  })
+  const payload = stripEmptyValues(recordCandidate)
 
   const loggedPayload = {
     ...payload,
     password_hash: '*****',
     uid: '*****',
-    secret_key: '********',
   }
 
   console.log('[DEBUG createUser payload]', loggedPayload)
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/create/users'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest({
+    endpoint: '/create/users',
+    payload,
+    context: 'user.create',
+  })
 
-    if (response.data?.status === 'success') {
-      return true
-    }
-
-    console.error('[createUser] unexpected response', response.data)
-    throw new Error('Failed to create user')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[createUser] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body)) {
+    return true
   }
+
+  const errorBody = body as { message?: unknown; error?: { message?: unknown } }
+  const message =
+    (typeof errorBody.message === 'string' && errorBody.message.trim()) ||
+    (typeof errorBody.error?.message === 'string' && errorBody.error.message.trim()) ||
+    null
+
+  throw new Error(message || 'Failed to create user')
 }

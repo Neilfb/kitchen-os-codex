@@ -46,7 +46,9 @@ export const MenuRecordSchema = z
     ai_processed: z.union([z.number(), z.boolean()]).optional(),
     upload_file_name: z.string().optional(),
     source_upload_id: z.union([z.number(), z.string()]).transform((value) => Number(value)).optional(),
-    ai_summary: z.string().optional(),
+    ai_summary: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((value) => (typeof value === 'string' ? value : undefined)),
   })
   .passthrough()
 

@@ -1,8 +1,9 @@
-import axios from 'axios'
 import { randomUUID } from 'crypto'
 import type { z } from 'zod'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
+import { ncdbRequest, isNcdbSuccess } from './client'
+import { getMenuById } from './getMenuById'
+import { ensureParseSuccess } from './constants'
 import { MenuRecordSchema, type MenuRecord } from '@/types/ncdb/menu'
 
 function stripEmptyValues<T extends Record<string, unknown>>(payload: T): Partial<T> {
@@ -56,36 +57,30 @@ export default async function createMenu(payload: Partial<MenuRecord>): Promise<
   const { id: unusedId, ...menuRecord } = ensureParseSuccess(MenuRecordSchema, candidate, 'createMenu input')
   void unusedId
 
-  const requestBody = {
-    ...stripEmptyValues(menuRecord as Record<string, unknown>),
-    secret_key: NCDB_SECRET_KEY,
-  }
+  const strippedPayload = stripEmptyValues(menuRecord as Record<string, unknown>)
 
-  console.log('[DEBUG createMenu payload]', {
-    ...requestBody,
-    secret_key: '********',
+  console.log('[DEBUG createMenu payload]', strippedPayload)
+
+  const { body } = await ncdbRequest<MenuRecord>({
+    endpoint: ['/create/menus', '/create/menu'],
+    payload: strippedPayload,
+    context: 'createMenu',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/create/menu'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: requestBody,
-    })
-
-    const { status, data } = response.data ?? {}
-
-    if (status !== 'success' || !data) {
-      console.error('[createMenu] unexpected response', response.data)
-      throw new Error('Failed to create menu')
-    }
-
-    return ensureParseSuccess(MenuRecordSchema, data, 'createMenu response')
-  } catch (error) {
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(MenuRecordSchema, body.data, 'createMenu response')
   }
+
+  if (isNcdbSuccess(body)) {
+    const idRaw = body.id ?? body.record_id
+    const parsedId = typeof idRaw === 'string' ? Number(idRaw) : idRaw
+    if (Number.isFinite(parsedId)) {
+      const fetched = await getMenuById({ id: Number(parsedId) })
+      if (fetched) {
+        return fetched
+      }
+    }
+  }
+
+  throw new Error(body?.message || 'Failed to create menu')
 }

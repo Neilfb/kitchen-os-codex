@@ -12,6 +12,7 @@
     "checks": "./scripts/checks.sh",
     "test:smoke": "dotenv -e .env.test -- tsx tests/smoke/sign-up-smoke.test.ts",
     "smoke-auth": "tsx scripts/smoke-auth.ts",
+    "smoke:staging": "tsx scripts/stagingSmoke.ts",
     "process-menu-uploads": "tsx workers/processMenuUploads.ts"
   },
   "dependencies": {

@@ -1,0 +1,26 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 101,
+      "name": "Summer Menu",
+      "description": "Seasonal offerings",
+      "restaurant_id": 55,
+      "created_by": "admin@allerq.com",
+      "created_at": 1718040000000,
+      "updated_at": 1718126400000,
+      "external_id": "menu-ext-101",
+      "menu_type": "seasonal",
+      "is_active": 1,
+      "ai_processed": 0,
+      "upload_file_name": "summer.pdf",
+      "source_upload_id": 999,
+      "ai_summary": null,
+      "extra_field_from_ncdb": "should be ignored"
+    }
+  ],
+  "meta": {
+    "count": 1,
+    "version": "2025-10-22"
+  }
+}

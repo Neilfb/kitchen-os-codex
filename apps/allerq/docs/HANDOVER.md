@@ -61,6 +61,7 @@ Manual smoke: sign in as superadmin → `/dashboard`, `/restaurants` → create/
 - Vercel cron (or equivalent) should call `POST /api/admin/menu-upload-worker` with header `x-cron-secret: $ALLERQ_WORKER_SECRET`. The endpoint runs the same worker used in the CLI and returns summary metrics.
 - Configure `ALLERQ_SLACK_WEBHOOK` so the worker pings Slack on success/failure; optionally set `ALLERQ_WORKER_SECRET` to guard the endpoint.
 - Worker metadata now stores `aiMetrics` (duration, token usage, items processed) per upload—use this for analytics dashboards.
+- Release gate: `pnpm --filter @kitchen-os/allerq lint`, `pnpm --filter @kitchen-os/allerq typecheck`, `pnpm vitest run apps/allerq/tests/contract/ncdbMenuContract.test.ts`, and `pnpm --filter @kitchen-os/allerq smoke:staging` must pass before promoting a build.
 
 ## Recent Updates — 2025‑10‑12
 - AI menu upload worker refactored into `createMenuUploadWorker` with dry-run-friendly tests and run summaries.
@@ -81,6 +82,12 @@ Manual smoke: sign in as superadmin → `/dashboard`, `/restaurants` → create/
   - Refactored menu creation to use a server action (`app/menus/actions.ts`) so client code no longer imports NCDB helpers directly.
 - **2025‑10‑22 follow-up**: NCDB production still serves legacy singular endpoints in some regions. `createMenu`/`createMenuItem` now auto-fallback to `/create/menu` + `/create/menuItem` if `/create/menus` + `/create/menu_items` return non-success, so menu creation no longer fails while the API rollout finishes.
 - **2025‑10‑22 validation fix**: NCDB responses include extra fields during the rollout. Menu schemas (`types/ncdb/menu.ts`) now `passthrough()` unknown keys so `getMenus` parsing no longer throws.
+- **2025‑10‑22 platform cleanup**:
+  - Introduced `apps/allerq/lib/ncb/client.ts` so all NCDB traffic flows through a single request helper with endpoint fallbacks, consistent headers, and contextual error messages.
+  - Added a contract test (`apps/allerq/tests/contract/ncdbMenuContract.test.ts`) using captured NCDB fixtures to detect schema drift in CI.
+  - `pnpm --filter @kitchen-os/allerq smoke:staging` now exercises menu fetch/create/item creation, optional logo uploads, and the AI worker dry-run to gate releases.
+  - The menu upload parser now imports `pdf-parse` via dynamic ESM so `next build` runs without warnings.
+  - Default NCDB error logs include request context; UI surfaces the upstream message instead of a generic failure.
 - **Verification**: `pnpm --filter @kitchen-os/allerq lint`, `pnpm --filter @kitchen-os/allerq typecheck`. **Next QA pass**: after deploy, create a menu with items and upload a logo on staging to confirm the aliases resolve correctly.
 
 ## Next Agent Checklist
@@ -99,6 +106,7 @@ Manual smoke: sign in as superadmin → `/dashboard`, `/restaurants` → create/
 - `.env.local` houses Cloudinary + NCDB credentials (required for logo uploads and API calls).
 - Add `OPENAI_API_KEY` (and optionally `ALLERQ_OPENAI_MODEL`, `ALLERQ_MENU_PARSER_VERSION`) before running the menu AI worker.
 - Re-run `pnpm install` if dependencies change (`lucide-react`, Cloudinary SDK already installed).
+- Staging smoke runner expects `ALLERQ_SMOKE_RESTAURANT_ID` (numeric) and optionally `ALLERQ_SMOKE_LOGO_PATH` (path to a local test asset) before executing `pnpm smoke:staging`.
 
 ## Open Questions
 - Do we need auditing/logging for restaurant/logo changes?  

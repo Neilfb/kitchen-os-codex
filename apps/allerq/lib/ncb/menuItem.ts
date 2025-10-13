@@ -1,13 +1,7 @@
-import axios from 'axios'
 import { z } from 'zod'
 
-import {
-  NCDB_API_KEY,
-  NCDB_SECRET_KEY,
-  buildNcdbUrl,
-  ensureParseSuccess,
-  extractNcdbError,
-} from './constants'
+import { ncdbRequest, isNcdbSuccess, type NcdbResponse } from './client'
+import { ensureParseSuccess } from './constants'
 import { MenuItemRecordSchema, type MenuItemRecord } from '@/types/ncdb/menu'
 import type { IdPayload } from '@/types/ncdb/shared'
 
@@ -34,13 +28,25 @@ const CreateMenuItemSchema = z.object({
 
 export type CreateMenuItemInput = z.infer<typeof CreateMenuItemSchema>
 
+function extractMessage(body: NcdbResponse): string | undefined {
+  const messageCandidate = (body as { message?: unknown; error?: { message?: unknown } }).message
+  if (typeof messageCandidate === 'string' && messageCandidate.trim()) {
+    return messageCandidate.trim()
+  }
+
+  const errorMessage = (body as { error?: { message?: unknown } }).error?.message
+  if (typeof errorMessage === 'string' && errorMessage.trim()) {
+    return errorMessage.trim()
+  }
+  return undefined
+}
+
 export async function createMenuItem(input: CreateMenuItemInput): Promise<MenuItemRecord> {
   const parsedInput = CreateMenuItemSchema.parse(input)
 
   const now = Date.now()
 
   const basePayload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     menu_id: parsedInput.menu_id,
     restaurant_id: parsedInput.restaurant_id,
     name: parsedInput.name,
@@ -61,51 +67,19 @@ export async function createMenuItem(input: CreateMenuItemInput): Promise<MenuIt
     }
   })
 
-  const endpoints = ['/create/menu_items', '/create/menuItem']
-  let lastError: unknown = new Error('Failed to create menu item')
+  console.log('[createMenuItem] sending payload', basePayload)
 
-  for (const endpoint of endpoints) {
-    console.log('[createMenuItem] sending payload', {
-      ...basePayload,
-      secret_key: '********',
-      _endpoint: endpoint,
-    })
+  const { body } = await ncdbRequest<MenuItemRecord>({
+    endpoint: ['/create/menu_items', '/create/menuItem'],
+    payload: basePayload,
+    context: 'menuItem.create',
+  })
 
-    try {
-      const response = await axios({
-        method: 'post',
-        url: buildNcdbUrl(endpoint),
-        headers: {
-          Authorization: `Bearer ${NCDB_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        data: basePayload,
-      })
-
-      if (response.data?.status === 'success' && response.data?.data) {
-        return ensureParseSuccess(MenuItemRecordSchema, response.data.data, 'createMenuItem response')
-      }
-
-      console.error('[createMenuItem] unexpected response', {
-        endpoint,
-        data: response.data,
-      })
-
-      lastError = new Error(
-        typeof response.data?.message === 'string' ? response.data.message : 'Failed to create menu item'
-      )
-    } catch (error) {
-      if (axios.isAxiosError?.(error) && error.response?.data) {
-        console.error('[createMenuItem] NCDB error response', {
-          endpoint,
-          data: error.response.data,
-        })
-      }
-      lastError = error
-    }
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(MenuItemRecordSchema, body.data, 'createMenuItem response')
   }
 
-  throw extractNcdbError(lastError)
+  throw new Error(extractMessage(body) || 'Failed to create menu item')
 }
 
 export interface GetMenuItemsOptions {
@@ -118,7 +92,6 @@ export interface GetMenuItemsOptions {
 
 export async function getMenuItems(options: GetMenuItemsOptions = {}): Promise<MenuItemRecord[]> {
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
   }
 
   if (typeof options.menuId === 'number') {
@@ -137,37 +110,24 @@ export async function getMenuItems(options: GetMenuItemsOptions = {}): Promise<M
 
   console.log('[getMenuItems] request payload', {
     ...payload,
-    secret_key: '********',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/menu_items'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<MenuItemRecord | MenuItemRecord[]>({
+    endpoint: '/search/menu_items',
+    payload,
+    context: 'menuItem.list',
+  })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      return ensureParseSuccess(MenuItemArraySchema, records, 'getMenuItems records')
-    }
-
-    if (response.data?.status === 'success') {
-      return []
-    }
-
-    console.error('[getMenuItems] unexpected response', response.data)
-    throw new Error('Failed to fetch menu items')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[getMenuItems] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
+    return ensureParseSuccess(MenuItemArraySchema, records, 'getMenuItems records')
   }
+
+  if (isNcdbSuccess(body)) {
+    return []
+  }
+
+  throw new Error(extractMessage(body) || 'Failed to fetch menu items')
 }
 
 const UpdateMenuItemSchema = z
@@ -196,7 +156,6 @@ export async function updateMenuItem({ id, ...updates }: UpdateMenuItemInput): P
   const parsedUpdates = UpdateMenuItemSchema.parse(updates)
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     record_id: id,
     updated_at: Date.now(),
     ...parsedUpdates,
@@ -215,32 +174,19 @@ export async function updateMenuItem({ id, ...updates }: UpdateMenuItemInput): P
 
   console.log('[updateMenuItem] sending payload', {
     ...payload,
-    secret_key: '********',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/update/menu_items'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<MenuItemRecord>({
+    endpoint: '/update/menu_items',
+    payload,
+    context: 'menuItem.update',
+  })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(MenuItemRecordSchema, response.data.data, 'updateMenuItem response')
-    }
-
-    console.error('[updateMenuItem] unexpected response', response.data)
-    throw new Error('Failed to update menu item')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[updateMenuItem] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(MenuItemRecordSchema, body.data, 'updateMenuItem response')
   }
+
+  throw new Error(extractMessage(body) || 'Failed to update menu item')
 }
 
 export async function deleteMenuItem({ id }: IdPayload): Promise<boolean> {
@@ -249,37 +195,20 @@ export async function deleteMenuItem({ id }: IdPayload): Promise<boolean> {
   }
 
   const payload = {
-    secret_key: NCDB_SECRET_KEY,
     record_id: id,
   }
 
-  console.log('[deleteMenuItem] sending payload', {
-    ...payload,
-    secret_key: '********',
+  console.log('[deleteMenuItem] sending payload', payload)
+
+  const { body } = await ncdbRequest({
+    endpoint: '/delete/menu_items',
+    payload,
+    context: 'menuItem.delete',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/delete/menu_items'),
-      headers:
-      {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
-
-    if (response.data?.status === 'success') {
-      return true
-    }
-
-    console.error('[deleteMenuItem] unexpected response', response.data)
-    throw new Error('Failed to delete menu item')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[deleteMenuItem] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body)) {
+    return true
   }
+
+  throw new Error(extractMessage(body) || 'Failed to delete menu item')
 }

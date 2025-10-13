@@ -1,8 +1,8 @@
-import axios from 'axios'
 import { randomUUID } from 'crypto'
 import type { z } from 'zod'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
+import { ncdbRequest, isNcdbSuccess } from './client'
+import { ensureParseSuccess } from './constants'
 import { MenuItemRecordSchema, type MenuItemRecord } from '@/types/ncdb/menu'
 
 function stripEmptyValues<T extends Record<string, unknown>>(payload: T): Partial<T> {
@@ -74,36 +74,25 @@ export default async function createMenuItem(payload: Partial<MenuItemRecord>): 
   )
   void unusedId
 
-  const requestBody = {
-    ...stripEmptyValues(menuItemRecord as Record<string, unknown>),
-    secret_key: NCDB_SECRET_KEY,
-  }
+  const strippedPayload = stripEmptyValues(menuItemRecord as Record<string, unknown>)
 
-  console.log('[DEBUG createMenuItem payload]', {
-    ...requestBody,
-    secret_key: '********',
+  console.log('[DEBUG createMenuItem payload]', strippedPayload)
+
+  const { body } = await ncdbRequest<MenuItemRecord>({
+    endpoint: ['/create/menu_items', '/create/menuItem'],
+    payload: strippedPayload,
+    context: 'menuItem.create',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/create/menuItem'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: requestBody,
-    })
-
-    const { status, data } = response.data ?? {}
-
-    if (status !== 'success' || !data) {
-      console.error('[createMenuItem] unexpected response', response.data)
-      throw new Error('Failed to create menu item')
-    }
-
-    return ensureParseSuccess(MenuItemRecordSchema, data, 'createMenuItem response')
-  } catch (error) {
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(MenuItemRecordSchema, body.data, 'createMenuItem response')
   }
+
+  const errorBody = body as { message?: unknown; error?: { message?: unknown } }
+  const message =
+    (typeof errorBody.message === 'string' && errorBody.message.trim()) ||
+    (typeof errorBody.error?.message === 'string' && errorBody.error.message.trim()) ||
+    null
+
+  throw new Error(message || 'Failed to create menu item')
 }

@@ -1,7 +1,6 @@
 import path from 'node:path'
 
 import axios from 'axios'
-import pdfParse from 'pdf-parse'
 import { extractRawText } from 'mammoth'
 
 import type { MenuUploadRecord } from '@/types/ncdb/menuUpload'
@@ -83,6 +82,8 @@ export class UnsupportedMenuUploadError extends Error {
 }
 
 export async function extractUploadText(upload: MenuUploadRecord): Promise<UploadTextExtraction> {
+  const pdfParseModule = await import('pdf-parse')
+  const pdfParse = (pdfParseModule.default ?? pdfParseModule) as (data: Buffer) => Promise<{ text: string; numpages: number }>
   const url = upload.file_url
   if (!url) {
     throw new UnsupportedMenuUploadError('Menu upload is missing file_url')
