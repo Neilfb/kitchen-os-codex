@@ -48,7 +48,7 @@ export const MenuRecordSchema = z
     source_upload_id: z.union([z.number(), z.string()]).transform((value) => Number(value)).optional(),
     ai_summary: z.string().optional(),
   })
-  .strict()
+  .passthrough()
 
 export type MenuRecord = z.infer<typeof MenuRecordSchema>
 
@@ -83,6 +83,6 @@ export const MenuItemRecordSchema = z
     identified_dietary: jsonField(z.array(IdentifiedTagSchema).default([]), []).optional(),
     regulatory_highlights: jsonField(z.array(RegulatoryHighlightSchema).default([]), []).optional(),
   })
-  .strict()
+  .passthrough()
 
 export type MenuItemRecord = z.infer<typeof MenuItemRecordSchema>

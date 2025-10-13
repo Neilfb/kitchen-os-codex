@@ -80,6 +80,7 @@ Manual smoke: sign in as superadmin → `/dashboard`, `/restaurants` → create/
   - Marked NCDB + Cloudinary helpers as `server-only` consumers of that module to prevent accidental client bundles stripping secrets.
   - Refactored menu creation to use a server action (`app/menus/actions.ts`) so client code no longer imports NCDB helpers directly.
 - **2025‑10‑22 follow-up**: NCDB production still serves legacy singular endpoints in some regions. `createMenu`/`createMenuItem` now auto-fallback to `/create/menu` + `/create/menuItem` if `/create/menus` + `/create/menu_items` return non-success, so menu creation no longer fails while the API rollout finishes.
+- **2025‑10‑22 validation fix**: NCDB responses include extra fields during the rollout. Menu schemas (`types/ncdb/menu.ts`) now `passthrough()` unknown keys so `getMenus` parsing no longer throws.
 - **Verification**: `pnpm --filter @kitchen-os/allerq lint`, `pnpm --filter @kitchen-os/allerq typecheck`. **Next QA pass**: after deploy, create a menu with items and upload a logo on staging to confirm the aliases resolve correctly.
 
 ## Next Agent Checklist
