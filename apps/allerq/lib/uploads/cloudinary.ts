@@ -1,5 +1,3 @@
-import 'server-only'
-
 import { v2 as cloudinary } from 'cloudinary'
 
 import { getOptionalServerEnv, getRequiredServerEnv } from '@/lib/env'

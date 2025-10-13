@@ -1,10 +1,12 @@
-'use server'
-
 /**
  * Centralised helpers for accessing server-side environment variables.
  * Adds support for common alias keys (historical secrets in Vercel)
  * and emits focused diagnostics when required values are missing.
  */
+
+if (typeof window !== 'undefined') {
+  throw new Error('env.ts must only be imported from server-side code')
+}
 
 const FALLBACK_MAP: Record<
   string,

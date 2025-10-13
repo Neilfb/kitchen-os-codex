@@ -1,5 +1,3 @@
-import 'server-only'
-
 import axios from 'axios'
 import { z } from 'zod'
 
