@@ -3,9 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { createMenu } from '@/lib/ncb/menu'
-import { createMenuItem } from '@/lib/ncb/menuItem'
-import type { MenuRecord } from '@/types/ncdb/menu'
+import { createMenuWithItemsAction } from '@/app/menus/actions'
 import { useToast } from '@/components/ui/toast'
 
 type RestaurantOption = {
@@ -119,39 +117,47 @@ export function MenuEditor({ restaurants, canCreateMenus }: MenuEditorProps) {
 
       const validItems = items.filter(isDraftValid)
 
+      let itemsPayload: Parameters<typeof createMenuWithItemsAction>[0]['items'] = []
+
+      try {
+        itemsPayload = validItems.map((item) => {
+          const trimmedPrice = item.price?.trim() ?? ''
+          const price = trimmedPrice ? Number(trimmedPrice) : undefined
+
+          if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+            throw new Error('Menu item prices must be non-negative numbers.')
+          }
+
+          return {
+            name: item.name.trim(),
+            description: item.description.trim(),
+            price,
+            category: item.category?.trim() || undefined,
+          }
+        })
+      } catch (priceError) {
+        setIsSaving(false)
+        toast({
+          title: 'Invalid menu item',
+          description:
+            priceError instanceof Error ? priceError.message : 'Check item details and try again.',
+          variant: 'error',
+        })
+        return
+      }
+
       setIsSaving(true)
       try {
-        const newMenu: MenuRecord = await createMenu({
+        const result = await createMenuWithItemsAction({
+          restaurantId: targetRestaurantId,
           name: name.trim(),
-          description: description.trim(),
-          restaurant_id: targetRestaurantId,
-          menu_type: menuType.trim() || undefined,
-          created_by: undefined,
+          description: description.trim() || undefined,
+          menuType: menuType.trim() || undefined,
+          items: itemsPayload,
         })
 
-        if (validItems.length > 0) {
-          await Promise.all(
-            validItems.map((item) => {
-              const payload: Parameters<typeof createMenuItem>[0] = {
-                menu_id: Number(newMenu.id),
-                restaurant_id: targetRestaurantId,
-                name: item.name.trim(),
-                description: item.description.trim(),
-                allergens: '',
-                dietary: '',
-              }
-
-              if (item.price && item.price.trim().length > 0) {
-                payload.price = Number(item.price)
-              }
-
-              if (item.category && item.category.trim().length > 0) {
-                payload.category = item.category.trim()
-              }
-
-              return createMenuItem(payload)
-            })
-          )
+        if (result.status !== 'success') {
+          throw new Error(result.message ?? 'Failed to create menu')
         }
 
         toast({

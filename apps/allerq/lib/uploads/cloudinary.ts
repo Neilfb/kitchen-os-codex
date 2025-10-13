@@ -1,11 +1,17 @@
+import 'server-only'
+
 import { v2 as cloudinary } from 'cloudinary'
 
-const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME
-const API_KEY = process.env.CLOUDINARY_API_KEY
-const API_SECRET = process.env.CLOUDINARY_API_SECRET
+import { getOptionalServerEnv, getRequiredServerEnv } from '@/lib/env'
+
+const CLOUD_NAME = getOptionalServerEnv('CLOUDINARY_CLOUD_NAME')
+const API_KEY = getOptionalServerEnv('CLOUDINARY_API_KEY')
+const API_SECRET = getOptionalServerEnv('CLOUDINARY_API_SECRET')
 
 if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
-  console.warn('[cloudinary] Missing configuration. Uploads will fail until CLOUDINARY_* env vars are set.')
+  console.warn(
+    '[cloudinary] Missing configuration. Uploads will fail until CLOUDINARY_* env vars are set. Checked fallbacks: CLOUDINARY_NAME, CLOUD_NAME, CLOUDINARY_KEY, CLOUDINARY_SECRET, CLOUDINARY_SECRET_KEY.'
+  )
 } else {
   cloudinary.config({
     cloud_name: CLOUD_NAME,

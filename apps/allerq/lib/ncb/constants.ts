@@ -1,19 +1,16 @@
+import 'server-only'
+
 import type { z } from 'zod'
+
+import { getOptionalServerEnv, getRequiredServerEnv } from '@/lib/env'
 
 const DEFAULT_BASE_URL = 'https://api.nocodebackend.com'
 
-function getRequiredEnv(name: string): string {
-  const value = process.env[name]
-  if (!value || !value.trim()) {
-    throw new Error(`Environment variable ${name} is required for NoCodeBackend integration`)
-  }
-  return value.trim()
-}
-
-export const NCDB_BASE_URL = (process.env.NCDB_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/$/, '')
-export const NCDB_INSTANCE = getRequiredEnv('NCDB_INSTANCE')
-export const NCDB_API_KEY = getRequiredEnv('NCDB_API_KEY')
-export const NCDB_SECRET_KEY = getRequiredEnv('NCDB_SECRET_KEY')
+const rawNcdbBaseUrl = getOptionalServerEnv('NCDB_BASE_URL') || DEFAULT_BASE_URL
+export const NCDB_BASE_URL = rawNcdbBaseUrl.trim().replace(/\/$/, '')
+export const NCDB_INSTANCE = getRequiredServerEnv('NCDB_INSTANCE')
+export const NCDB_API_KEY = getRequiredServerEnv('NCDB_API_KEY')
+export const NCDB_SECRET_KEY = getRequiredServerEnv('NCDB_SECRET_KEY')
 
 export const buildNcdbUrl = (path: string) => `${NCDB_BASE_URL}/${path.replace(/^\//, '')}?Instance=${NCDB_INSTANCE}`
 

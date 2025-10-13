@@ -62,6 +62,37 @@ Manual smoke: sign in as superadmin → `/dashboard`, `/restaurants` → create/
 - Configure `ALLERQ_SLACK_WEBHOOK` so the worker pings Slack on success/failure; optionally set `ALLERQ_WORKER_SECRET` to guard the endpoint.
 - Worker metadata now stores `aiMetrics` (duration, token usage, items processed) per upload—use this for analytics dashboards.
 
+## Recent Updates — 2025‑10‑12
+- AI menu upload worker refactored into `createMenuUploadWorker` with dry-run-friendly tests and run summaries.
+- New API surface:
+  - `/api/admin/menu-upload-worker` for scheduled runs + Slack alerts.
+  - `/api/menus/[menuId]/**` family consolidated to fix slug conflicts and support CRUD from the dashboard.
+  - Notifications drawer now reads `/api/notifications` backed by upload activity logs.
+- Parser/worker tests added (`apps/allerq/tests/ai/menuUploadParser.test.ts`, `apps/allerq/tests/worker/processMenuUploads.integration.test.ts`). Run via `pnpm vitest run`.
+- Menu editor validates prices client-side before POSTing to avoid sending `NaN` to NCDB.
+- NCDB helpers (`lib/ncb/menuUploads.ts`) enforce finite numeric coercion to prevent silent `NaN` inserts.
+
+## Incident Log — 2025‑10‑22
+- **Symptom**: `/menus` crashed with “Environment variable NCDB_INSTANCE is required…” and logo uploads returned 500 even though Vercel env vars were populated.
+- **Root cause**: NCDB/Cloudinary helpers read secrets at module load without supporting historic alias keys (`NCDB_SECRET`, `CLOUDINARY_SECRET`, etc.). Some Vercel environments still relied on those legacy names, so the runtime saw `undefined` and aborted.
+- **Fix**:
+  - Added `apps/allerq/lib/env.ts` to centralise server-side env access, honour common aliases, and emit detailed diagnostics for missing keys.
+  - Marked NCDB + Cloudinary helpers as `server-only` consumers of that module to prevent accidental client bundles stripping secrets.
+  - Refactored menu creation to use a server action (`app/menus/actions.ts`) so client code no longer imports NCDB helpers directly.
+- **Verification**: `pnpm --filter @kitchen-os/allerq lint`, `pnpm --filter @kitchen-os/allerq typecheck`. **Next QA pass**: after deploy, create a menu with items and upload a logo on staging to confirm the aliases resolve correctly.
+
+## Next Agent Checklist
+1. **Staging QA**
+   - Seed a menu upload in staging, run the worker (cron endpoint or CLI), review `/menus/[id]` panel, and ensure promoted items reach NCDB with correct metadata.
+   - Capture any schema/permission gaps for follow-up.
+2. **Automation**
+   - Configure Vercel cron + Slack webhook in the staging/production envs.
+   - Verify Slack alerts fire on success/failure.
+3. **Metrics Surfacing**
+   - Build dashboard widgets (or simple logs) off `aiMetrics` to monitor latency, token usage, and throughput.
+4. **Product polish**
+   - Resume work on billing/QR/settings routes and analytics once AI flow is stable.
+
 ## Environment
 - `.env.local` houses Cloudinary + NCDB credentials (required for logo uploads and API calls).
 - Add `OPENAI_API_KEY` (and optionally `ALLERQ_OPENAI_MODEL`, `ALLERQ_MENU_PARSER_VERSION`) before running the menu AI worker.

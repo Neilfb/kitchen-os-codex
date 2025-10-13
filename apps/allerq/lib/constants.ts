@@ -1,13 +1,7 @@
-if (
-  !process.env.NCDB_API_KEY ||
-  !(process.env.NCDB_SECRET_KEY || process.env.NCDB_SECRET) ||
-  !process.env.NCDB_INSTANCE
-) {
-  throw new Error(
-    '❌ Missing NCDB environment variables. Please check your .env.local file.'
-  )
-}
+import 'server-only'
 
-export const NCDB_API_KEY = process.env.NCDB_API_KEY!
-export const NCDB_INSTANCE = process.env.NCDB_INSTANCE!
-export const NCDB_SECRET = (process.env.NCDB_SECRET_KEY || process.env.NCDB_SECRET)!
+import { getRequiredServerEnv } from '@/lib/env'
+
+export const NCDB_API_KEY = getRequiredServerEnv('NCDB_API_KEY')
+export const NCDB_INSTANCE = getRequiredServerEnv('NCDB_INSTANCE')
+export const NCDB_SECRET = getRequiredServerEnv('NCDB_SECRET_KEY')
