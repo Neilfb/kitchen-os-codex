@@ -28,7 +28,7 @@ export async function createMenu(input: CreateMenuInput): Promise<MenuRecord> {
 
   const now = Date.now()
 
-  const payload: Record<string, unknown> = {
+  const basePayload: Record<string, unknown> = {
     secret_key: NCDB_SECRET_KEY,
     name: parsedInput.name,
     restaurant_id: parsedInput.restaurant_id,
@@ -40,41 +40,58 @@ export async function createMenu(input: CreateMenuInput): Promise<MenuRecord> {
     is_active: 1,
   }
 
-  Object.keys(payload).forEach((key) => {
-    const value = payload[key]
+  Object.keys(basePayload).forEach((key) => {
+    const value = basePayload[key]
     if (value === undefined || value === null || value === '') {
-      delete payload[key]
+      delete basePayload[key]
     }
   })
 
-  console.log('[createMenu] sending payload', {
-    ...payload,
-    secret_key: '********',
-  })
+  const endpoints = ['/create/menus', '/create/menu']
+  let lastError: unknown = new Error('Failed to create menu')
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/create/menus'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
+  for (const endpoint of endpoints) {
+    console.log('[createMenu] sending payload', {
+      ...basePayload,
+      secret_key: '********',
+      _endpoint: endpoint,
     })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(MenuRecordSchema, response.data.data, 'createMenu response')
-    }
+    try {
+      const response = await axios({
+        method: 'post',
+        url: buildNcdbUrl(endpoint),
+        headers: {
+          Authorization: `Bearer ${NCDB_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        data: basePayload,
+      })
 
-    console.error('[createMenu] unexpected response', response.data)
-    throw new Error('Failed to create menu')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[createMenu] NCDB error response', error.response.data)
+      if (response.data?.status === 'success' && response.data?.data) {
+        return ensureParseSuccess(MenuRecordSchema, response.data.data, 'createMenu response')
+      }
+
+      console.error('[createMenu] unexpected response', {
+        endpoint,
+        data: response.data,
+      })
+
+      lastError = new Error(
+        typeof response.data?.message === 'string' ? response.data.message : 'Failed to create menu'
+      )
+    } catch (error) {
+      if (axios.isAxiosError?.(error) && error.response?.data) {
+        console.error('[createMenu] NCDB error response', {
+          endpoint,
+          data: error.response.data,
+        })
+      }
+      lastError = error
     }
-    throw extractNcdbError(error)
   }
+
+  throw extractNcdbError(lastError)
 }
 
 export interface GetMenusOptions {
