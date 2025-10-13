@@ -12,7 +12,9 @@
     "dev:foodsafe": "pnpm dev --filter=@kitchen-os/foodsafe",
     "test": "vitest",
     "dev:test": "pnpm run dev:check-env && pnpm test && pnpm dev",
-    "smoke-auth": "pnpm --filter @kitchen-os/allerq run smoke-auth"
+    "smoke-auth": "pnpm --filter @kitchen-os/allerq run smoke-auth",
+    "smoke:staging": "pnpm --filter @kitchen-os/allerq run smoke:staging",
+    "test:contract": "pnpm --filter @kitchen-os/allerq run test:contract"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
