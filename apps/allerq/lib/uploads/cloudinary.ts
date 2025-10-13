@@ -1,10 +1,12 @@
 import { v2 as cloudinary } from 'cloudinary'
 
-import { getOptionalServerEnv, getRequiredServerEnv } from '@/lib/env'
+import { getOptionalServerEnv } from '@/lib/env'
 
 const CLOUD_NAME = getOptionalServerEnv('CLOUDINARY_CLOUD_NAME')
 const API_KEY = getOptionalServerEnv('CLOUDINARY_API_KEY')
 const API_SECRET = getOptionalServerEnv('CLOUDINARY_API_SECRET')
+const CLOUDINARY_UPLOAD_FOLDER = getOptionalServerEnv('CLOUDINARY_UPLOAD_FOLDER')
+const CLOUDINARY_MENU_UPLOAD_FOLDER = getOptionalServerEnv('CLOUDINARY_MENU_UPLOAD_FOLDER')
 
 if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
   console.warn(
@@ -45,7 +47,7 @@ export async function uploadLogoToCloudinary({
     throw new Error('Cloudinary credentials are not configured')
   }
 
-  const targetFolder = folder || process.env.CLOUDINARY_UPLOAD_FOLDER || 'allerq/logos'
+  const targetFolder = folder || CLOUDINARY_UPLOAD_FOLDER || 'allerq/logos'
 
   return new Promise<UploadLogoResult>((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -121,7 +123,7 @@ export async function uploadMenuFileToCloudinary({
   }
 
   const targetFolder =
-    folder || process.env.CLOUDINARY_MENU_UPLOAD_FOLDER || process.env.CLOUDINARY_UPLOAD_FOLDER || 'allerq/menus'
+    folder || CLOUDINARY_MENU_UPLOAD_FOLDER || CLOUDINARY_UPLOAD_FOLDER || 'allerq/menus'
 
   return new Promise<UploadMenuFileResult>((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(

@@ -17,6 +17,17 @@ export interface CreateRestaurantPayload {
   cover_image?: string
 }
 
+interface CreateRestaurantResponse {
+  status?: string
+  data?: unknown
+  id?: number | string
+  record_id?: number | string
+  message?: string
+  error?: {
+    message?: string
+  }
+}
+
 export async function createRestaurant(payload: CreateRestaurantPayload): Promise<RestaurantRecord> {
   const name = payload.name?.trim()
   const ownerId = payload.owner_id?.trim()
@@ -50,7 +61,7 @@ export async function createRestaurant(payload: CreateRestaurantPayload): Promis
   })
 
   try {
-    const response = await axios({
+    const response = await axios<CreateRestaurantResponse>({
       method: 'post',
       url: buildNcdbUrl('/create/restaurants'),
       headers: {
