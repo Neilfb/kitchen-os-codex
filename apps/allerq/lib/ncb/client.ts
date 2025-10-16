@@ -138,5 +138,6 @@ export async function ncdbRequest<T = unknown>(
   if (options.context) {
     error.message = `[${options.context}] ${error.message}`
   }
+  ;(error as Error & { cause?: unknown }).cause = lastError
   throw error
 }

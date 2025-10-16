@@ -1,13 +1,8 @@
 import axios from 'axios'
 import { z } from 'zod'
 
-import {
-  NCDB_API_KEY,
-  NCDB_SECRET_KEY,
-  buildNcdbUrl,
-  ensureParseSuccess,
-  extractNcdbError,
-} from './constants'
+import { ensureParseSuccess } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import {
   MenuUploadItemRecordSchema,
   MenuUploadItemStatusSchema,
@@ -23,39 +18,33 @@ import { IdentifiedTagSchema } from '@/types/ncdb/menu'
 let supportsRestaurantIdColumn = true
 let supportsMenuIdColumn = true
 
-function isUnknownColumnError(error: unknown, column: string) {
-  if (!axios.isAxiosError?.(error)) {
-    return false
+function resolveAxiosError(error: unknown): import('axios').AxiosError | undefined {
+  if (axios.isAxiosError?.(error)) {
+    return error
   }
 
-  const payload = error.response?.data
-  if (!payload) {
-    return false
+  if (error && typeof error === 'object' && 'cause' in error) {
+    return resolveAxiosError((error as { cause?: unknown }).cause)
   }
 
-  const message = typeof payload.error === 'string' ? payload.error : payload.message
-  if (typeof message === 'string' && message.includes(`Unknown column '${column}'`)) {
-    return true
-  }
-
-  return false
+  return undefined
 }
 
-function extractNcdbMessage(error: unknown): string | undefined {
-  if (!axios.isAxiosError?.(error)) {
-    return undefined
+function isUnknownColumnError(error: unknown, column: string) {
+  const axiosError = resolveAxiosError(error)
+  if (!axiosError) {
+    return false
   }
-  const payload = error.response?.data
+
+  const payload = axiosError.response?.data as { error?: unknown; message?: unknown } | undefined
   if (!payload) {
-    return undefined
+    return false
   }
-  if (typeof payload.error === 'string') {
-    return payload.error
-  }
-  if (typeof payload.message === 'string') {
-    return payload.message
-  }
-  return undefined
+
+  const message =
+    (typeof payload?.error === 'string' && payload.error.trim() ? payload.error : undefined) ??
+    (typeof payload?.message === 'string' && payload.message.trim() ? payload.message : undefined)
+  return typeof message === 'string' && message.includes(`Unknown column '${column}'`)
 }
 
 function appendMetadata(
@@ -201,7 +190,6 @@ export async function createMenuUpload(input: CreateMenuUploadInput): Promise<Me
   })
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     file_url: parsed.file_url,
     file_name: parsed.file_name,
     file_size: parsed.file_size,
@@ -210,6 +198,7 @@ export async function createMenuUpload(input: CreateMenuUploadInput): Promise<Me
     parser_version: parsed.parser_version,
     created_at: timestamp,
     updated_at: timestamp,
+    metadata: JSON.stringify(metadata),
   }
 
   if (supportsRestaurantIdColumn) {
@@ -219,26 +208,17 @@ export async function createMenuUpload(input: CreateMenuUploadInput): Promise<Me
     payload.menu_id = parsed.menu_id
   }
 
-  payload.metadata = JSON.stringify(metadata)
-
-  console.log('[createMenuUpload] sending payload', {
-    ...payload,
-    secret_key: '********',
-  })
+  console.log('[createMenuUpload] sending payload', payload)
 
   try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/create/menu_uploads'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
+    const { body } = await ncdbRequest<MenuUploadRecord>({
+      endpoint: '/create/menu_uploads',
+      payload,
+      context: 'menuUpload.create',
     })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      const parsedRecord = ensureParseSuccess(MenuUploadRecordSchema, response.data.data, 'createMenuUpload response')
+    if (isNcdbSuccess(body) && body.data) {
+      const parsedRecord = ensureParseSuccess(MenuUploadRecordSchema, body.data, 'createMenuUpload response')
       const mergedMetadata = appendMetadata(parsedRecord.metadata as Record<string, unknown> | undefined, metadata)
       return {
         ...parsedRecord,
@@ -248,60 +228,59 @@ export async function createMenuUpload(input: CreateMenuUploadInput): Promise<Me
       }
     }
 
-    if (response.data?.status === 'success' && response.data?.id) {
-      const fallbackRecord = {
-        id: response.data.id,
-        restaurant_id: parsed.restaurant_id,
-        menu_id: parsed.menu_id,
-        file_url: parsed.file_url,
-        file_name: parsed.file_name,
-        file_size: parsed.file_size,
-        resource_type: parsed.resource_type,
-        status: parsed.status,
-        parser_version: parsed.parser_version,
-        metadata,
-        created_at: timestamp,
-        updated_at: timestamp,
-      }
-      return ensureParseSuccess(MenuUploadRecordSchema, fallbackRecord, 'createMenuUpload fallback record')
+    if (isNcdbSuccess(body) && body.id) {
+      const fallbackRecord = ensureParseSuccess(
+        MenuUploadRecordSchema,
+        {
+          id: body.id,
+          restaurant_id: parsed.restaurant_id,
+          menu_id: parsed.menu_id,
+          file_url: parsed.file_url,
+          file_name: parsed.file_name,
+          file_size: parsed.file_size,
+          resource_type: parsed.resource_type,
+          status: parsed.status,
+          parser_version: parsed.parser_version,
+          metadata,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+        'createMenuUpload fallback record'
+      )
+      return fallbackRecord
     }
 
-    console.error('[createMenuUpload] unexpected response', response.data)
-    throw new Error('Failed to create menu upload record')
+    if (isNcdbSuccess(body)) {
+      throw new Error('NCDB did not return a menu upload record')
+    }
+
+    throw new Error(getNcdbErrorMessage(body) || 'Failed to create menu upload record')
   } catch (error) {
     if (supportsRestaurantIdColumn && isUnknownColumnError(error, 'restaurant_id')) {
       supportsRestaurantIdColumn = false
       console.warn('[createMenuUpload] detected missing restaurant_id column, retrying without it')
-      return createMenuUpload({
-        ...input,
-        restaurant_id: parsed.restaurant_id,
-        menu_id: parsed.menu_id,
-        metadata,
-      })
+      return createMenuUpload(input)
     }
 
     if (supportsMenuIdColumn && isUnknownColumnError(error, 'menu_id')) {
       supportsMenuIdColumn = false
       console.warn('[createMenuUpload] detected missing menu_id column, retrying without it')
-      return createMenuUpload({
-        ...input,
-        restaurant_id: parsed.restaurant_id,
-        menu_id: parsed.menu_id,
-        metadata,
-      })
+      return createMenuUpload(input)
     }
 
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[createMenuUpload] NCDB error response', error.response.data)
-    }
-    const upstreamMessage = extractNcdbMessage(error)
+    const axiosError = resolveAxiosError(error)
+    const errorPayload = axiosError?.response?.data as { error?: unknown; message?: unknown } | undefined
+    const upstreamMessage =
+      (typeof errorPayload?.error === 'string' && errorPayload.error.trim() ? errorPayload.error : undefined) ??
+      (typeof errorPayload?.message === 'string' && errorPayload.message.trim() ? errorPayload.message : undefined)
+
     if (upstreamMessage === 'Error creating record.' || upstreamMessage === 'Table does not exist') {
       throw new Error(
         'Menu upload storage is not provisioned in NCDB. Create the `menu_uploads` table (see docs/architecture/allerq-menus-qr-billing-plan.md) or disable uploads for now.'
       )
     }
 
-    throw extractNcdbError(error)
+    throw error
   }
 }
 
@@ -315,7 +294,6 @@ export async function createMenuUploadItem(input: CreateMenuUploadItemInput): Pr
   const status = (parsed.status ?? 'pending') as MenuUploadItemStatus
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     upload_id: parsed.upload_id,
     created_at: timestamp,
     updated_at: timestamp,
@@ -368,58 +346,49 @@ export async function createMenuUploadItem(input: CreateMenuUploadItemInput): Pr
 
   console.log('[createMenuUploadItem] sending payload', {
     ...payload,
-    secret_key: '********',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/create/menu_upload_items'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<MenuUploadItemRecord>({
+    endpoint: '/create/menu_upload_items',
+    payload,
+    context: 'menuUploadItem.create',
+  })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(MenuUploadItemRecordSchema, response.data.data, 'createMenuUploadItem response')
-    }
-
-    if (response.data?.status === 'success' && response.data?.id) {
-      return ensureParseSuccess(
-        MenuUploadItemRecordSchema,
-        {
-          id: response.data.id,
-          upload_id: parsed.upload_id,
-          restaurant_id: parsed.restaurant_id,
-          menu_id: parsed.menu_id,
-          name: parsed.name,
-          description: parsed.description,
-          price: parsed.price,
-          raw_text: parsed.raw_text,
-          status,
-          confidence: parsed.confidence,
-          suggested_category: parsed.suggested_category,
-          suggested_allergens: parsed.suggested_allergens,
-          suggested_dietary: parsed.suggested_dietary,
-          ai_payload: parsed.ai_payload,
-          metadata: parsed.metadata,
-          created_at: timestamp,
-          updated_at: timestamp,
-        },
-        'createMenuUploadItem fallback record'
-      )
-    }
-
-    console.error('[createMenuUploadItem] unexpected response', response.data)
-    throw new Error('Failed to create menu upload item')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[createMenuUploadItem] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(MenuUploadItemRecordSchema, body.data, 'createMenuUploadItem response')
   }
+
+  if (isNcdbSuccess(body) && body.id) {
+    return ensureParseSuccess(
+      MenuUploadItemRecordSchema,
+      {
+        id: body.id,
+        upload_id: parsed.upload_id,
+        restaurant_id: parsed.restaurant_id,
+        menu_id: parsed.menu_id,
+        name: parsed.name,
+        description: parsed.description,
+        price: parsed.price,
+        raw_text: parsed.raw_text,
+        status,
+        confidence: parsed.confidence,
+        suggested_category: parsed.suggested_category,
+        suggested_allergens: parsed.suggested_allergens,
+        suggested_dietary: parsed.suggested_dietary,
+        ai_payload: parsed.ai_payload,
+        metadata: parsed.metadata,
+        created_at: timestamp,
+        updated_at: timestamp,
+      },
+      'createMenuUploadItem fallback record'
+    )
+  }
+
+  if (isNcdbSuccess(body)) {
+    throw new Error('NCDB did not return a menu upload item record')
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to create menu upload item')
 }
 
 export async function getMenuUploadById({ id }: GetMenuUploadByIdInput): Promise<MenuUploadRecord | null> {
@@ -427,53 +396,34 @@ export async function getMenuUploadById({ id }: GetMenuUploadByIdInput): Promise
     throw new Error('A valid menu upload id is required')
   }
 
-  const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
-    id,
-  }
+  const payload: Record<string, unknown> = { id }
 
-  console.log('[getMenuUploadById] request payload', {
-    ...payload,
-    secret_key: '********',
+  console.log('[getMenuUploadById] request payload', payload)
+
+  const { body } = await ncdbRequest<MenuUploadRecord | MenuUploadRecord[]>({
+    endpoint: '/search/menu_uploads',
+    payload,
+    context: 'menuUpload.getById',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/menu_uploads'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
-
-    if (response.data?.status === 'success' && response.data?.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      for (const record of records) {
-        try {
-          return ensureParseSuccess(MenuUploadRecordSchema, record, 'getMenuUploadById record')
-        } catch (error) {
-          console.warn('[getMenuUploadById] record failed validation', error)
-          continue
-        }
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
+    for (const record of records) {
+      try {
+        return ensureParseSuccess(MenuUploadRecordSchema, record, 'getMenuUploadById record')
+      } catch (error) {
+        console.warn('[getMenuUploadById] record failed validation', error)
       }
-
-      throw new Error('NCDB returned malformed menu upload record')
     }
 
-    if (response.data?.status === 'success') {
-      return null
-    }
-
-    console.error('[getMenuUploadById] unexpected response', response.data)
-    throw new Error('Failed to fetch menu upload')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[getMenuUploadById] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+    throw new Error('NCDB returned malformed menu upload record')
   }
+
+  if (isNcdbSuccess(body)) {
+    return null
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch menu upload')
 }
 
 export interface GetMenuUploadsOptions {
@@ -483,9 +433,7 @@ export interface GetMenuUploadsOptions {
 }
 
 export async function getMenuUploads(options: GetMenuUploadsOptions = {}): Promise<MenuUploadRecord[]> {
-  const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
-  }
+  const payload: Record<string, unknown> = {}
 
   if (supportsRestaurantIdColumn && typeof options.restaurantId === 'number') {
     payload.restaurant_id = options.restaurantId
@@ -499,24 +447,17 @@ export async function getMenuUploads(options: GetMenuUploadsOptions = {}): Promi
     payload.status = options.status
   }
 
-  console.log('[getMenuUploads] request payload', {
-    ...payload,
-    secret_key: '********',
-  })
+  console.log('[getMenuUploads] request payload', payload)
 
   try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/menu_uploads'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
+    const { body } = await ncdbRequest<MenuUploadRecord | MenuUploadRecord[]>({
+      endpoint: '/search/menu_uploads',
+      payload,
+      context: 'menuUpload.list',
     })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
+    if (isNcdbSuccess(body) && body.data) {
+      const records = Array.isArray(body.data) ? body.data : [body.data]
       const parsedRecords = ensureParseSuccess(MenuUploadArraySchema, records, 'getMenuUploads records')
 
       return parsedRecords.filter((record) => {
@@ -536,16 +477,23 @@ export async function getMenuUploads(options: GetMenuUploadsOptions = {}): Promi
           }
         }
 
+        if (Array.isArray(options.status)) {
+          return options.status.includes(record.status)
+        }
+
+        if (options.status) {
+          return record.status === options.status
+        }
+
         return true
       })
     }
 
-    if (response.data?.status === 'success') {
+    if (isNcdbSuccess(body)) {
       return []
     }
 
-    console.error('[getMenuUploads] unexpected response', response.data)
-    throw new Error('Failed to fetch menu uploads')
+    throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch menu uploads')
   } catch (error) {
     if (supportsRestaurantIdColumn && isUnknownColumnError(error, 'restaurant_id')) {
       supportsRestaurantIdColumn = false
@@ -557,10 +505,8 @@ export async function getMenuUploads(options: GetMenuUploadsOptions = {}): Promi
       console.warn('[getMenuUploads] detected missing menu_id column, retrying without it')
       return getMenuUploads(options)
     }
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[getMenuUploads] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+
+    throw error
   }
 }
 
@@ -594,7 +540,6 @@ export async function updateMenuUpload({ id, ...updates }: UpdateMenuUploadInput
   const parsedUpdates = UpdateMenuUploadSchema.parse(updates)
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     record_id: id,
     updated_at: Date.now(),
     ...parsedUpdates,
@@ -617,32 +562,19 @@ export async function updateMenuUpload({ id, ...updates }: UpdateMenuUploadInput
 
   console.log('[updateMenuUpload] sending payload', {
     ...payload,
-    secret_key: '********',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/update/menu_uploads'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<MenuUploadRecord>({
+    endpoint: '/update/menu_uploads',
+    payload,
+    context: 'menuUpload.update',
+  })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(MenuUploadRecordSchema, response.data.data, 'updateMenuUpload response')
-    }
-
-    console.error('[updateMenuUpload] unexpected response', response.data)
-    throw new Error('Failed to update menu upload')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[updateMenuUpload] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(MenuUploadRecordSchema, body.data, 'updateMenuUpload response')
   }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to update menu upload')
 }
 
 export interface GetMenuUploadItemsOptions {
@@ -654,9 +586,7 @@ export interface GetMenuUploadItemsOptions {
 export async function getMenuUploadItems(
   options: GetMenuUploadItemsOptions = {}
 ): Promise<MenuUploadItemRecord[]> {
-  const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
-  }
+  const payload: Record<string, unknown> = {}
 
   if (typeof options.uploadId === 'number') {
     payload.upload_id = options.uploadId
@@ -670,39 +600,24 @@ export async function getMenuUploadItems(
     payload.status = options.status
   }
 
-  console.log('[getMenuUploadItems] request payload', {
-    ...payload,
-    secret_key: '********',
+  console.log('[getMenuUploadItems] request payload', payload)
+
+  const { body } = await ncdbRequest<MenuUploadItemRecord | MenuUploadItemRecord[]>({
+    endpoint: '/search/menu_upload_items',
+    payload,
+    context: 'menuUploadItem.list',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/menu_upload_items'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
-
-    if (response.data?.status === 'success' && response.data?.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      return ensureParseSuccess(MenuUploadItemArraySchema, records, 'getMenuUploadItems records')
-    }
-
-    if (response.data?.status === 'success') {
-      return []
-    }
-
-    console.error('[getMenuUploadItems] unexpected response', response.data)
-    throw new Error('Failed to fetch menu upload items')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[getMenuUploadItems] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
+    return ensureParseSuccess(MenuUploadItemArraySchema, records, 'getMenuUploadItems records')
   }
+
+  if (isNcdbSuccess(body)) {
+    return []
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch menu upload items')
 }
 
 const UpdateMenuUploadItemSchema = z
@@ -749,7 +664,6 @@ export async function updateMenuUploadItem({
   const parsedUpdates = UpdateMenuUploadItemSchema.parse(updates)
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     record_id: id,
     updated_at: Date.now(),
     ...parsedUpdates,
@@ -777,30 +691,17 @@ export async function updateMenuUploadItem({
 
   console.log('[updateMenuUploadItem] sending payload', {
     ...payload,
-    secret_key: '********',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/update/menu_upload_items'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<MenuUploadItemRecord>({
+    endpoint: '/update/menu_upload_items',
+    payload,
+    context: 'menuUploadItem.update',
+  })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(MenuUploadItemRecordSchema, response.data.data, 'updateMenuUploadItem response')
-    }
-
-    console.error('[updateMenuUploadItem] unexpected response', response.data)
-    throw new Error('Failed to update menu upload item')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[updateMenuUploadItem] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(MenuUploadItemRecordSchema, body.data, 'updateMenuUploadItem response')
   }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to update menu upload item')
 }
