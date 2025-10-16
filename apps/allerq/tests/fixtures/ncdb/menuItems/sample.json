@@ -1,0 +1,32 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 501,
+      "menu_id": 148,
+      "restaurant_id": "55",
+      "name": "Fallback Dish",
+      "description": null,
+      "price": "1.23",
+      "category": null,
+      "allergens": "",
+      "dietary": null,
+      "created_at": "1718040000000",
+      "updated_at": 1718126400000,
+      "external_id": null,
+      "ai_confidence": "",
+      "manual_override": "false",
+      "category_id": "",
+      "is_active": "true",
+      "ai_processed": null,
+      "ai_needs_review": "0",
+      "identified_allergens": "[]",
+      "identified_dietary": null,
+      "regulatory_highlights": null
+    }
+  ],
+  "meta": {
+    "count": 1,
+    "version": "2025-10-22"
+  }
+}

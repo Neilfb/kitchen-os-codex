@@ -10,8 +10,12 @@ export function jsonField<T>(schema: z.ZodType<T>, fallback: T | JsonFallback<T>
   const fallbackValue = typeof fallback === 'function' ? (fallback as JsonFallback<T>) : () => fallback
 
   return z
-    .union([z.string(), schema])
+    .union([z.string(), schema, z.null(), z.undefined()])
     .transform((value) => {
+      if (value === null || value === undefined) {
+        return fallbackValue()
+      }
+
       if (typeof value === 'string') {
         try {
           const parsed = JSON.parse(value) as unknown
