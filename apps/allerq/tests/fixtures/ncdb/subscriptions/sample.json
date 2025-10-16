@@ -1,0 +1,26 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 301,
+      "restaurant_id": 55,
+      "provider": "stripe",
+      "provider_customer_id": "cus_123",
+      "provider_subscription_id": "sub_abc",
+      "plan": "pro",
+      "interval": "month",
+      "amount_minor_units": 9900,
+      "currency": "GBP",
+      "status": "active",
+      "trial_end": null,
+      "renews_at": 1761200000000,
+      "canceled_at": null,
+      "location_count": 3,
+      "metadata": {
+        "salesRep": "Alex"
+      },
+      "created_at": 1760400000000,
+      "updated_at": 1760500000000
+    }
+  ]
+}

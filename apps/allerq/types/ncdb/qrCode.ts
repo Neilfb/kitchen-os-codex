@@ -26,6 +26,6 @@ export const QrCodeRecordSchema = z
     updated_at: z.union([z.number(), z.string()]).transform((value) => Number(value)),
     metadata: jsonField(z.record(z.string(), z.unknown()).default({}), () => ({})).optional(),
   })
-  .strict()
+  .passthrough()
 
 export type QrCodeRecord = z.infer<typeof QrCodeRecordSchema>

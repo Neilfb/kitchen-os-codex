@@ -1,0 +1,16 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 901,
+      "user_id": 42,
+      "restaurant_id": 55,
+      "role": "manager",
+      "created_at": 1760300000000,
+      "updated_at": 1760400000000,
+      "metadata": {
+        "invitedBy": "ops@allerq.com"
+      }
+    }
+  ]
+}

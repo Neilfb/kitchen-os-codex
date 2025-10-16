@@ -1,0 +1,25 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 501,
+      "restaurant_id": 55,
+      "menu_id": 101,
+      "location_code": "bar-1",
+      "qr_url": "https://cdn.example.com/qr/bar-1.png",
+      "deeplink_url": "https://allerq.app/r/55/101",
+      "download_url": "https://cdn.example.com/qr/bar-1.pdf",
+      "format": "png",
+      "scan_target_version": 2,
+      "scan_count": 37,
+      "is_active": 1,
+      "metadata": {
+        "printed": true,
+        "notes": "Main bar"
+      },
+      "created_at": 1760500000000,
+      "updated_at": 1760600000000,
+      "extra_ncdb_field": "ignore-me"
+    }
+  ]
+}
