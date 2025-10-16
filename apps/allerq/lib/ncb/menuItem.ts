@@ -47,23 +47,46 @@ export async function createMenuItem(input: CreateMenuItemInput): Promise<MenuIt
     is_active: 1,
   }
 
-  Object.keys(basePayload).forEach((key) => {
-    const value = basePayload[key]
-    if (value === undefined || value === null || value === '') {
-      delete basePayload[key]
-    }
-  })
+  const payload = Object.fromEntries(
+    Object.entries(basePayload).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  )
 
-  console.log('[createMenuItem] sending payload', basePayload)
+  console.log('[createMenuItem] sending payload', payload)
 
   const { body } = await ncdbRequest<MenuItemRecord>({
     endpoint: ['/create/menu_items', '/create/menuItem'],
-    payload: basePayload,
+    payload,
     context: 'menuItem.create',
   })
 
   if (isNcdbSuccess(body) && body.data) {
     return ensureParseSuccess(MenuItemRecordSchema, body.data, 'createMenuItem response')
+  }
+
+  if (isNcdbSuccess(body)) {
+    const idRaw = body.id ?? body.record_id
+    const parsedId = typeof idRaw === 'string' ? Number(idRaw) : idRaw
+
+    const menuItems = await getMenuItems({ menuId: parsedInput.menu_id })
+
+    if (Number.isFinite(parsedId)) {
+      const matchedById = menuItems.find((item) => Number(item.id) === Number(parsedId))
+      if (matchedById) {
+        return matchedById
+      }
+    }
+
+    const matchedByNameAndTimestamp = menuItems.find((item) => {
+      if (item.name !== parsedInput.name) return false
+      const createdAt = Number(item.created_at)
+      return Number.isFinite(createdAt) && Math.abs(createdAt - now) < 60_000
+    })
+
+    if (matchedByNameAndTimestamp) {
+      return matchedByNameAndTimestamp
+    }
+
+    throw new Error('Menu item was created but could not be retrieved from NCDB')
   }
 
   throw new Error(getNcdbErrorMessage(body) || 'Failed to create menu item')
