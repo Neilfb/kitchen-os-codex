@@ -68,3 +68,4 @@ scripts/       # Utility scripts (env checks, etc.)
 For schema updates or workflow questions, consult the Kitchen OS platform documentation or the engineering leads. All deviations from the rules must be documented in commit messages or inline comments.
 
 _Last updated: 2025-09-27_
+# Trigger smoke test
