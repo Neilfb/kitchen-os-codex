@@ -1,8 +1,7 @@
 'use server'
 
-import axios from 'axios'
-
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
+import { ensureParseSuccess } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import { UserRecordSchema, type UserRecord } from '@/types/ncdb/user'
 
 export interface GetUserByEmailPayload {
@@ -16,37 +15,32 @@ export async function getUserByEmail({ email }: GetUserByEmailPayload): Promise<
 
   const normalizedEmail = email.trim().toLowerCase()
   const payload = {
-    secret_key: NCDB_SECRET_KEY,
     email: normalizedEmail,
   }
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/users'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<UserRecord | UserRecord[]>({
+    endpoint: '/search/users',
+    payload,
+    context: 'user.getByEmail',
+  })
 
-    if (response.data.status === 'success' && response.data.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
 
-      for (const record of records) {
-        try {
-          return ensureParseSuccess(UserRecordSchema, record, 'getUserByEmail record')
-        } catch {
-          continue
-        }
+    for (const record of records) {
+      try {
+        return ensureParseSuccess(UserRecordSchema, record, 'getUserByEmail record')
+      } catch (error) {
+        console.warn('[getUserByEmail] record failed validation', error)
       }
-
-      throw new Error('NCDB returned malformed user record')
     }
 
-    return null
-  } catch (error) {
-    throw extractNcdbError(error)
+    throw new Error('NCDB returned malformed user record')
   }
+
+  if (isNcdbSuccess(body)) {
+    return null
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to lookup user by email')
 }

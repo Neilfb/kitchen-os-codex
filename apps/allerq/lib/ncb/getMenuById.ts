@@ -1,6 +1,5 @@
-import axios from 'axios'
-
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
+import { ensureParseSuccess } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import { MenuRecordSchema, type MenuRecord } from '@/types/ncdb/menu'
 
 export interface GetMenuByIdPayload {
@@ -8,37 +7,30 @@ export interface GetMenuByIdPayload {
 }
 
 export async function getMenuById({ id }: GetMenuByIdPayload): Promise<MenuRecord | null> {
-  const payload = {
-    secret_key: NCDB_SECRET_KEY,
-    id,
-  }
+  const payload = { id }
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/menus'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<MenuRecord | MenuRecord[]>({
+    endpoint: '/search/menus',
+    payload,
+    context: 'menu.getById',
+  })
 
-    if (response.data.status === 'success' && response.data.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      for (const record of records) {
-        try {
-          return ensureParseSuccess(MenuRecordSchema, record, 'getMenuById record')
-        } catch {
-          continue
-        }
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
+    for (const record of records) {
+      try {
+        return ensureParseSuccess(MenuRecordSchema, record, 'getMenuById record')
+      } catch (error) {
+        console.warn('[getMenuById] record failed validation', error)
       }
-
-      throw new Error('NCDB returned malformed menu record')
     }
 
-    return null
-  } catch (error) {
-    throw extractNcdbError(error)
+    throw new Error('NCDB returned malformed menu record')
   }
+
+  if (isNcdbSuccess(body)) {
+    return null
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch menu')
 }

@@ -1,6 +1,4 @@
-import axios from 'axios'
-
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import type { IdPayload } from '@/types/ncdb/shared'
 
 export async function deleteUser({ id }: IdPayload): Promise<boolean> {
@@ -9,36 +7,20 @@ export async function deleteUser({ id }: IdPayload): Promise<boolean> {
   }
 
   const payload = {
-    secret_key: NCDB_SECRET_KEY,
     record_id: id,
   }
 
-  console.log('[deleteUser] sending payload', {
-    ...payload,
-    secret_key: '********',
+  console.log('[deleteUser] sending payload', payload)
+
+  const { body } = await ncdbRequest({
+    endpoint: '/delete/users',
+    payload,
+    context: 'user.delete',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/delete/users'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
-
-    if (response.data.status === 'success') {
-      return true
-    }
-
-    console.error('[deleteUser] unexpected response', response.data)
-    throw new Error('Failed to delete user')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[deleteUser] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body)) {
+    return true
   }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to delete user')
 }

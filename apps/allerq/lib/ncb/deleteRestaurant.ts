@@ -1,6 +1,4 @@
-import axios from 'axios'
-
-import { NCDB_API_KEY, buildNcdbUrl, extractNcdbError } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 
 export interface DeleteRestaurantPayload {
   id: number
@@ -13,26 +11,17 @@ export async function deleteRestaurant({ id }: DeleteRestaurantPayload): Promise
 
   console.log('[deleteRestaurant] sending request', { id })
 
-  try {
-    const response = await axios({
-      method: 'delete',
-      url: buildNcdbUrl(`/delete/restaurants/${id}`),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    })
+  const { body } = await ncdbRequest({
+    endpoint: `/delete/restaurants/${id}`,
+    method: 'delete',
+    includeSecretKey: false,
+    payload: {},
+    context: 'restaurant.delete',
+  })
 
-    if (response.data?.status === 'success') {
-      return true
-    }
-
-    console.error('[deleteRestaurant] unexpected response', response.data)
-    throw new Error('Failed to delete restaurant')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[deleteRestaurant] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body)) {
+    return true
   }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to delete restaurant')
 }

@@ -3,7 +3,7 @@ import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl } from './constants'
 import { extractNcdbError } from './constants'
 
-type HttpMethod = 'get' | 'post'
+type HttpMethod = 'get' | 'post' | 'delete'
 
 export interface NcdbRequestOptions {
   endpoint: string | string[]
