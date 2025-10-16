@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "checks": "./scripts/checks.sh",
     "test:smoke": "dotenv -e .env.test -- tsx tests/smoke/sign-up-smoke.test.ts",
-    "test:contract": "vitest run apps/allerq/tests/contract/ncdbMenuContract.test.ts",
+    "test:contract": "vitest --config vitest.config.ts run tests/contract",
     "smoke-auth": "tsx scripts/smoke-auth.ts",
     "smoke:staging": "tsx scripts/stagingSmoke.ts",
     "process-menu-uploads": "tsx workers/processMenuUploads.ts"

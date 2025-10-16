@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path'
 const rootDir = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
+  root: rootDir,
   resolve: {
     alias: {
       '@': resolve(rootDir, 'apps/allerq'),
@@ -15,7 +16,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: [],
-    include: ['**/tests/**/*.test.ts'],
+    include: ['apps/allerq/tests/**/*.test.ts'],
     exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
   },
 })
