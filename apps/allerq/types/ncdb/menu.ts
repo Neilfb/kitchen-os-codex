@@ -40,11 +40,15 @@ export const MenuRecordSchema = z
     created_by: z.string().optional(),
     created_at: z.union([z.number(), z.string()]).transform((value) => Number(value)),
     updated_at: z.union([z.number(), z.string()]).transform((value) => Number(value)),
-    external_id: z.string().optional(),
+    external_id: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((value) => (typeof value === 'string' ? value : undefined)),
     menu_type: z.string().optional(),
     is_active: z.union([z.number(), z.boolean()]).optional().default(1),
     ai_processed: z.union([z.number(), z.boolean()]).optional(),
-    upload_file_name: z.string().optional(),
+    upload_file_name: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((value) => (typeof value === 'string' ? value : undefined)),
     source_upload_id: z.union([z.number(), z.string()]).transform((value) => Number(value)).optional(),
     ai_summary: z
       .union([z.string(), z.null(), z.undefined()])
@@ -79,7 +83,9 @@ export const MenuItemRecordSchema = z
     manual_override: z.union([z.number(), z.boolean()]).optional(),
     category_id: z.union([z.number(), z.string()]).optional(),
     is_active: z.union([z.number(), z.boolean()]).optional(),
-    ai_processed: z.union([z.number(), z.boolean()]).optional(),
+    ai_processed: z
+      .union([z.number(), z.boolean(), z.null(), z.undefined()])
+      .transform((value) => (value === null ? undefined : value)),
     ai_needs_review: z.union([z.number(), z.boolean()]).optional(),
     identified_allergens: jsonField(z.array(IdentifiedTagSchema).default([]), []).optional(),
     identified_dietary: jsonField(z.array(IdentifiedTagSchema).default([]), []).optional(),

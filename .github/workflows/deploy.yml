@@ -3,7 +3,7 @@ name: Deploy AllerQ
 on:
   push:
     branches:
-      - main  # or 'production' or whatever your deploy branch is
+      - main
 
 jobs:
   build-and-test:
@@ -18,24 +18,29 @@ jobs:
         with:
           node-version: 18
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9 # or match your lockfile (pnpm@9)
+
       - name: Install dependencies
         run: pnpm install
 
       - name: Run Lint
-        run: pnpm lint
+        run: pnpm --filter @kitchen-os/allerq lint
 
       - name: Run Type Check
-        run: pnpm tsc
+        run: pnpm --filter @kitchen-os/allerq typecheck
 
       - name: Run Contract Tests
-        run: pnpm test:contract
+        run: pnpm --filter @kitchen-os/allerq run test:contract
 
       - name: Run Staging Smoke Test
-        run: pnpm smoke:staging
+        run: pnpm --filter @kitchen-os/allerq run smoke:staging
         env:
-          ALLERQ_SMOKE_RESTAURANT_ID: "69"
-          ALLERQ_SMOKE_LOGO_PATH: "https://res.cloudinary.com/dgs7jfjby/image/upload/v1759852082/allerq/logos/-logo_qbocfy.png"
-          NCDB_INSTANCE: "48346_allerq"
+          ALLERQ_SMOKE_RESTAURANT_ID: ${{ secrets.ALLERQ_SMOKE_RESTAURANT_ID }}
+          ALLERQ_SMOKE_LOGO_PATH: ${{ secrets.ALLERQ_SMOKE_LOGO_PATH }}
+          NCDB_INSTANCE: ${{ secrets.NCDB_INSTANCE }}
           NCDB_API_KEY: ${{ secrets.NCDB_API_KEY }}
           NCDB_SECRET_KEY: ${{ secrets.NCDB_SECRET_KEY }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
