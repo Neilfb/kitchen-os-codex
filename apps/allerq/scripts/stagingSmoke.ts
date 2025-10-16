@@ -2,11 +2,32 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
-import { createMenu, getMenus, updateMenu } from '@/lib/ncb/menu'
-import { createMenuItem } from '@/lib/ncb/menuItem'
-import { uploadLogoToCloudinary } from '@/lib/uploads/cloudinary'
+import { config as loadEnv } from 'dotenv'
 import type { UploadLogoOptions } from '@/lib/uploads/cloudinary'
+
+interface SmokeDependencies {
+  createMenu: typeof import('@/lib/ncb/menu').createMenu
+  getMenus: typeof import('@/lib/ncb/menu').getMenus
+  updateMenu: typeof import('@/lib/ncb/menu').updateMenu
+  createMenuItem: typeof import('@/lib/ncb/menuItem').createMenuItem
+  uploadLogoToCloudinary: typeof import('@/lib/uploads/cloudinary').uploadLogoToCloudinary
+}
+
+const REQUIRED_ENV_KEYS: string[] = [
+  'NCDB_INSTANCE',
+  'NCDB_API_KEY',
+  'NCDB_SECRET_KEY',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+  'ALLERQ_SMOKE_RESTAURANT_ID',
+]
+
+const scriptDir = path.dirname(fileURLToPath(new URL(import.meta.url)))
+
+let cachedDependencies: SmokeDependencies | null = null
 
 function ensureEnv(name: string): string {
   const value = process.env[name]
@@ -16,7 +37,52 @@ function ensureEnv(name: string): string {
   return value.trim()
 }
 
-async function maybeUploadLogo(): Promise<void> {
+function loadLocalSmokeEnvIfNeeded(): void {
+  if (process.env.CI === 'true') {
+    return
+  }
+
+  const smokeEnvPath = path.join(scriptDir, '.env.smoke')
+  if (fs.existsSync(smokeEnvPath)) {
+    loadEnv({ path: smokeEnvPath })
+    console.log(`[smoke] Loaded environment variables from ${smokeEnvPath}`)
+  }
+}
+
+function verifyRequiredEnv(): void {
+  const missing = REQUIRED_ENV_KEYS.filter((key) => !process.env[key] || !process.env[key]!.trim())
+  if (missing.length > 0) {
+    throw new Error(
+      `[smoke] Missing required environment variables: ${missing.join(
+        ', '
+      )}. Set them in your environment or add them to scripts/.env.smoke.`
+    )
+  }
+}
+
+async function loadDependencies(): Promise<SmokeDependencies> {
+  if (cachedDependencies) {
+    return cachedDependencies
+  }
+
+  const [{ createMenu, getMenus, updateMenu }, { createMenuItem }, { uploadLogoToCloudinary }] = await Promise.all([
+    import('@/lib/ncb/menu'),
+    import('@/lib/ncb/menuItem'),
+    import('@/lib/uploads/cloudinary'),
+  ])
+
+  cachedDependencies = {
+    createMenu,
+    getMenus,
+    updateMenu,
+    createMenuItem,
+    uploadLogoToCloudinary,
+  }
+
+  return cachedDependencies
+}
+
+async function maybeUploadLogo(deps: SmokeDependencies): Promise<void> {
   const logoPath = process.env.ALLERQ_SMOKE_LOGO_PATH
   if (!logoPath) {
     console.log('[smoke] Skipping logo upload (ALLERQ_SMOKE_LOGO_PATH not set)')
@@ -35,19 +101,19 @@ async function maybeUploadLogo(): Promise<void> {
     contentType: undefined,
   }
 
-  const result = await uploadLogoToCloudinary(options)
+  const result = await deps.uploadLogoToCloudinary(options)
   console.log('[smoke] Logo upload successful', {
     secureUrl: result.secureUrl,
     publicId: result.publicId,
   })
 }
 
-async function runMenuLifecycle(restaurantId: number): Promise<void> {
-  const existingMenus = await getMenus({ restaurantId })
+async function runMenuLifecycle(deps: SmokeDependencies, restaurantId: number): Promise<void> {
+  const existingMenus = await deps.getMenus({ restaurantId })
   console.log('[smoke] Existing menus', existingMenus.length)
 
   const menuName = `Smoke Menu ${new Date().toISOString()}`
-  const menu = await createMenu({
+  const menu = await deps.createMenu({
     name: menuName,
     restaurant_id: restaurantId,
     description: 'Automated staging smoke menu',
@@ -57,7 +123,7 @@ async function runMenuLifecycle(restaurantId: number): Promise<void> {
 
   console.log('[smoke] Created menu', { id: menu.id, name: menu.name })
 
-  const item = await createMenuItem({
+  const item = await deps.createMenuItem({
     menu_id: Number(menu.id),
     restaurant_id: restaurantId,
     name: 'Smoke Dish',
@@ -70,7 +136,7 @@ async function runMenuLifecycle(restaurantId: number): Promise<void> {
 
   console.log('[smoke] Created menu item', { id: item.id, name: item.name })
 
-  await updateMenu({ id: Number(menu.id), is_active: false })
+  await deps.updateMenu({ id: Number(menu.id), is_active: false })
   console.log('[smoke] Deactivated smoke menu', { id: menu.id })
 }
 
@@ -94,14 +160,18 @@ async function runWorkerDryRun(): Promise<void> {
 
 async function run(): Promise<void> {
   try {
+    loadLocalSmokeEnvIfNeeded()
+    verifyRequiredEnv()
+    const deps = await loadDependencies()
+
     const restaurantIdValue = ensureEnv('ALLERQ_SMOKE_RESTAURANT_ID')
     const restaurantId = Number(restaurantIdValue)
     if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
       throw new Error('ALLERQ_SMOKE_RESTAURANT_ID must be a positive number')
     }
 
-    await runMenuLifecycle(restaurantId)
-    await maybeUploadLogo()
+    await runMenuLifecycle(deps, restaurantId)
+    await maybeUploadLogo(deps)
     await runWorkerDryRun()
 
     console.log('\n[smoke] Staging smoke completed successfully')
