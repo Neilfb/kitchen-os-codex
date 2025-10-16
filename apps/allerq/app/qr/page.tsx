@@ -5,6 +5,8 @@ import { Section } from '@/components/dashboard/PageLayout'
 import { authOptions } from '@/lib/auth/nextAuth'
 import { requireUser } from '@/lib/auth/guards'
 
+export const dynamic = 'force-dynamic'
+
 export default async function QrCodesPage() {
   const session = await getServerSession(authOptions)
   const user = requireUser(session)

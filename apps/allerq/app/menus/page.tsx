@@ -10,6 +10,8 @@ import { getRestaurants } from '@/lib/ncb/getRestaurants'
 import { scopeRestaurantsForUser } from '@/lib/menus/restaurants'
 import { userHasCapability } from '@/lib/auth/permissions'
 
+export const dynamic = 'force-dynamic'
+
 interface MenusPageProps {
   searchParams?: Record<string, string | string[] | undefined>
 }

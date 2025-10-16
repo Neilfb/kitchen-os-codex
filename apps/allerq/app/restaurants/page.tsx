@@ -11,6 +11,8 @@ import { authOptions } from '@/lib/auth/nextAuth'
 import { getRestaurants } from '@/lib/ncb/getRestaurants'
 import { requireAnyCapability } from '@/lib/auth/guards'
 
+export const dynamic = 'force-dynamic'
+
 function filterRestaurantsForActor(restaurants: Awaited<ReturnType<typeof getRestaurants>>, actor: ReturnType<typeof requireAnyCapability>) {
   if (actor.role === 'superadmin') {
     return restaurants

@@ -1,5 +1,4 @@
-'use server'
-
+import { cookies } from 'next/headers'
 import type { NextRequest, NextResponse } from 'next/server'
 
 import { getSessionCookieName, getSessionMaxAgeSeconds } from '@/lib/auth/constants'
@@ -16,10 +15,7 @@ export interface AuthCookieDescriptor {
   maxAge: number
 }
 
-export async function buildAuthCookie(
-  token: string,
-  maxAge?: number
-): Promise<AuthCookieDescriptor> {
+export async function buildAuthCookie(token: string, maxAge?: number): Promise<AuthCookieDescriptor> {
   if (!token?.trim()) {
     throw new Error('Auth cookie token value is required')
   }
@@ -42,15 +38,17 @@ export async function buildAuthCookie(
   }
 }
 
-export async function setAuthCookie(
-  token: string,
-  response?: NextResponse,
-  maxAge?: number
-): Promise<AuthCookieDescriptor> {
+export async function setAuthCookie(token: string, response?: NextResponse, maxAge?: number): Promise<AuthCookieDescriptor> {
   const cookie = await buildAuthCookie(token, maxAge)
 
   if (response) {
     response.cookies.set(cookie)
+  } else {
+    try {
+      cookies().set(cookie)
+    } catch (error) {
+      console.warn('[auth/cookies] unable to set auth cookie via cookies()', error)
+    }
   }
 
   return cookie
@@ -59,18 +57,24 @@ export async function setAuthCookie(
 export async function clearAuthCookie(response?: NextResponse): Promise<AuthCookieDescriptor> {
   const sessionCookieName = await getSessionCookieName()
 
-  const cookie = {
+  const cookie: AuthCookieDescriptor = {
     name: sessionCookieName,
     value: '',
-    httpOnly: true as const,
-    secure: true as const,
-    sameSite: 'strict' as const,
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
     path: '/' as '/',
     maxAge: 0,
   }
 
   if (response) {
     response.cookies.set(cookie)
+  } else {
+    try {
+      cookies().set(cookie)
+    } catch (error) {
+      console.warn('[auth/cookies] unable to clear auth cookie via cookies()', error)
+    }
   }
 
   return cookie
@@ -80,44 +84,45 @@ export async function getAuthCookie(
   request: NextRequest | Request | undefined,
   headerName?: string
 ): Promise<string | null> {
-  if (!request) return null
-
   const cookieName = headerName ?? (await getSessionCookieName())
 
-  if (isNextRequest(request)) {
-    const cookie = request.cookies.get(cookieName)
-    if (cookie) {
-      return typeof cookie === 'string' ? cookie : cookie.value
+  if (request && 'cookies' in request && typeof (request as NextRequest).cookies?.get === 'function') {
+    const candidate = (request as NextRequest).cookies.get(cookieName)
+    if (candidate) {
+      const value = typeof candidate === 'string' ? candidate : candidate.value
+      if (value?.trim()) {
+        return value.trim()
+      }
     }
   }
 
-  const cookieHeader = request.headers.get('cookie')
-  if (!cookieHeader) return null
+  if (request) {
+    const directCookie = request.headers.get('cookie') ?? request.headers.get('Cookie')
+    if (directCookie) {
+      const match = directCookie
+        .split(';')
+        .map((entry) => entry.trim())
+        .find((entry) => entry.startsWith(`${cookieName}=`))
 
-  const cookies = cookieHeader.split(';')
-  for (const rawCookie of cookies) {
-    const [name, ...rest] = rawCookie.split('=')
-    if (!name || rest.length === 0) continue
-    if (name.trim() !== cookieName) continue
-    const value = rest.join('=').trim()
-    if (!value) return null
-    try {
-      return decodeURIComponent(value)
-    } catch {
-      return value
+      if (match) {
+        const value = match.split('=').slice(1).join('=').trim()
+        if (value) {
+          try {
+            return decodeURIComponent(value)
+          } catch {
+            return value
+          }
+        }
+      }
     }
+  }
+
+  try {
+    const cookie = cookies().get(cookieName)?.value
+    return cookie ? cookie.trim() : null
+  } catch (error) {
+    console.warn('[auth/cookies] unable to read cookies()', error)
   }
 
   return null
-}
-
-function isNextRequest(candidate: unknown): candidate is NextRequest {
-  return (
-    typeof candidate === 'object' &&
-    candidate !== null &&
-    'cookies' in candidate &&
-    typeof (candidate as { cookies?: unknown }).cookies === 'object' &&
-    candidate.cookies !== null &&
-    typeof (candidate as NextRequest).cookies?.get === 'function'
-  )
 }

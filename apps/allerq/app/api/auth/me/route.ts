@@ -5,6 +5,8 @@ import verifyToken from '@/lib/auth/verifyToken'
 
 const BEARER_PREFIX = /^\s*Bearer\s+/i
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const cookieToken = await getAuthCookie(request)

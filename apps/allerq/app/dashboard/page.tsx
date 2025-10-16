@@ -16,6 +16,8 @@ import { userHasCapability } from '@/lib/auth/permissions'
 import { getUserRestaurantAssignments } from '@/lib/ncb/userRestaurantAssignments'
 import type { Capability } from '@/types/user'
 
+export const dynamic = 'force-dynamic'
+
 const ROLE_LABEL: Record<string, string> = {
   superadmin: 'Superadmin',
   admin: 'Admin',

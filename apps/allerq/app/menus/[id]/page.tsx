@@ -12,6 +12,8 @@ import { getMenuUploadItems } from '@/lib/ncb/menuUploads'
 import { actorHasRestaurantAccess, buildActorFromSession } from '@/lib/menus/access'
 import { MenuDetailClient } from '@/components/menus/MenuDetailClient'
 
+export const dynamic = 'force-dynamic'
+
 interface MenuDetailPageProps {
   params: { id: string }
 }

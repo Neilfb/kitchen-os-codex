@@ -12,6 +12,8 @@ import { getUsers } from '@/lib/ncb/getUsers'
 import { requireAnyCapability } from '@/lib/auth/guards'
 import { getUserRestaurantAssignments } from '@/lib/ncb/userRestaurantAssignments'
 
+export const dynamic = 'force-dynamic'
+
 function scopeUsers(
   users: Awaited<ReturnType<typeof getUsers>>,
   actor: ReturnType<typeof requireAnyCapability>,
