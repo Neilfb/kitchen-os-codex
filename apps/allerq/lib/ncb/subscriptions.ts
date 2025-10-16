@@ -1,13 +1,7 @@
-import axios from 'axios'
 import { z } from 'zod'
 
-import {
-  NCDB_API_KEY,
-  NCDB_SECRET_KEY,
-  buildNcdbUrl,
-  ensureParseSuccess,
-  extractNcdbError,
-} from './constants'
+import { ensureParseSuccess } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import {
   SubscriptionProviderSchema,
   SubscriptionRecordSchema,
@@ -44,7 +38,6 @@ export async function createSubscriptionRecord(input: CreateSubscriptionInput): 
   const timestamp = Date.now()
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     restaurant_id: parsed.restaurant_id,
     location_code: parsed.location_code,
     provider: parsed.provider,
@@ -76,56 +69,43 @@ export async function createSubscriptionRecord(input: CreateSubscriptionInput): 
 
   console.log('[createSubscriptionRecord] sending payload', {
     ...payload,
-    secret_key: '********',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/create/subscriptions'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<SubscriptionRecord>({
+    endpoint: '/create/subscriptions',
+    payload,
+    context: 'subscription.create',
+  })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(SubscriptionRecordSchema, response.data.data, 'createSubscriptionRecord response')
-    }
-
-    if (response.data?.status === 'success' && response.data?.id) {
-      const fallbackRecord = {
-        id: response.data.id,
-        restaurant_id: parsed.restaurant_id,
-        location_code: parsed.location_code,
-        provider: parsed.provider,
-        provider_customer_id: parsed.provider_customer_id,
-        provider_subscription_id: parsed.provider_subscription_id,
-        plan: parsed.plan,
-        interval: parsed.interval,
-        amount_minor_units: parsed.amount_minor_units,
-        currency: parsed.currency,
-        status: parsed.status,
-        trial_end: parsed.trial_end ?? undefined,
-        renews_at: parsed.renews_at ?? undefined,
-        canceled_at: parsed.canceled_at ?? undefined,
-        location_count: parsed.location_count,
-        created_at: timestamp,
-        updated_at: timestamp,
-      }
-
-      return ensureParseSuccess(SubscriptionRecordSchema, fallbackRecord, 'createSubscriptionRecord fallback record')
-    }
-
-    console.error('[createSubscriptionRecord] unexpected response', response.data)
-    throw new Error('Failed to create subscription record')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[createSubscriptionRecord] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(SubscriptionRecordSchema, body.data, 'createSubscriptionRecord response')
   }
+
+  if (isNcdbSuccess(body) && body.id) {
+    const fallbackRecord = {
+      id: body.id,
+      restaurant_id: parsed.restaurant_id,
+      location_code: parsed.location_code,
+      provider: parsed.provider,
+      provider_customer_id: parsed.provider_customer_id,
+      provider_subscription_id: parsed.provider_subscription_id,
+      plan: parsed.plan,
+      interval: parsed.interval,
+      amount_minor_units: parsed.amount_minor_units,
+      currency: parsed.currency,
+      status: parsed.status,
+      trial_end: parsed.trial_end ?? undefined,
+      renews_at: parsed.renews_at ?? undefined,
+      canceled_at: parsed.canceled_at ?? undefined,
+      location_count: parsed.location_count,
+      created_at: timestamp,
+      updated_at: timestamp,
+    }
+
+    return ensureParseSuccess(SubscriptionRecordSchema, fallbackRecord, 'createSubscriptionRecord fallback record')
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to create subscription record')
 }
 
 export interface GetSubscriptionsOptions {
@@ -136,9 +116,7 @@ export interface GetSubscriptionsOptions {
 }
 
 export async function getSubscriptions(options: GetSubscriptionsOptions = {}): Promise<SubscriptionRecord[]> {
-  const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
-  }
+  const payload: Record<string, unknown> = {}
 
   if (typeof options.restaurantId === 'number') {
     payload.restaurant_id = options.restaurantId
@@ -155,39 +133,24 @@ export async function getSubscriptions(options: GetSubscriptionsOptions = {}): P
     payload.status = options.status
   }
 
-  console.log('[getSubscriptions] request payload', {
-    ...payload,
-    secret_key: '********',
+  console.log('[getSubscriptions] request payload', payload)
+
+  const { body } = await ncdbRequest<SubscriptionRecord | SubscriptionRecord[]>({
+    endpoint: '/search/subscriptions',
+    payload,
+    context: 'subscription.list',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/subscriptions'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
-
-    if (response.data?.status === 'success' && response.data?.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      return ensureParseSuccess(SubscriptionArraySchema, records, 'getSubscriptions records')
-    }
-
-    if (response.data?.status === 'success') {
-      return []
-    }
-
-    console.error('[getSubscriptions] unexpected response', response.data)
-    throw new Error('Failed to fetch subscriptions')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[getSubscriptions] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
+    return ensureParseSuccess(SubscriptionArraySchema, records, 'getSubscriptions records')
   }
+
+  if (isNcdbSuccess(body)) {
+    return []
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch subscriptions')
 }
 
 const UpdateSubscriptionSchema = z
@@ -219,7 +182,6 @@ export async function updateSubscriptionRecord({
   const parsedUpdates = UpdateSubscriptionSchema.parse(updates)
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     record_id: id,
     updated_at: Date.now(),
     ...parsedUpdates,
@@ -240,32 +202,17 @@ export async function updateSubscriptionRecord({
     }
   })
 
-  console.log('[updateSubscriptionRecord] sending payload', {
-    ...payload,
-    secret_key: '********',
+  console.log('[updateSubscriptionRecord] sending payload', payload)
+
+  const { body } = await ncdbRequest<SubscriptionRecord>({
+    endpoint: '/update/subscriptions',
+    payload,
+    context: 'subscription.update',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/update/subscriptions'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
-
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(SubscriptionRecordSchema, response.data.data, 'updateSubscriptionRecord response')
-    }
-
-    console.error('[updateSubscriptionRecord] unexpected response', response.data)
-    throw new Error('Failed to update subscription record')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[updateSubscriptionRecord] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(SubscriptionRecordSchema, body.data, 'updateSubscriptionRecord response')
   }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to update subscription record')
 }

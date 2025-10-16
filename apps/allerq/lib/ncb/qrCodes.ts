@@ -1,13 +1,7 @@
-import axios from 'axios'
 import { z } from 'zod'
 
-import {
-  NCDB_API_KEY,
-  NCDB_SECRET_KEY,
-  buildNcdbUrl,
-  ensureParseSuccess,
-  extractNcdbError,
-} from './constants'
+import { ensureParseSuccess } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import { QrCodeRecordSchema, type QrCodeRecord } from '@/types/ncdb/qrCode'
 
 const QrCodeArraySchema = z.array(QrCodeRecordSchema)
@@ -31,7 +25,6 @@ export async function createQrCodeRecord(input: CreateQrCodeInput): Promise<QrCo
   const timestamp = Date.now()
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     restaurant_id: parsed.restaurant_id,
     menu_id: parsed.menu_id,
     location_code: parsed.location_code,
@@ -58,51 +51,38 @@ export async function createQrCodeRecord(input: CreateQrCodeInput): Promise<QrCo
 
   console.log('[createQrCodeRecord] sending payload', {
     ...payload,
-    secret_key: '********',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/create/qr_codes'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<QrCodeRecord>({
+    endpoint: '/create/qr_codes',
+    payload,
+    context: 'qr.create',
+  })
 
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(QrCodeRecordSchema, response.data.data, 'createQrCodeRecord response')
-    }
-
-    if (response.data?.status === 'success' && response.data?.id) {
-      const fallbackRecord = {
-        id: response.data.id,
-        restaurant_id: parsed.restaurant_id,
-        menu_id: parsed.menu_id,
-        location_code: parsed.location_code,
-        qr_url: parsed.qr_url,
-        deeplink_url: parsed.deeplink_url,
-        download_url: parsed.download_url,
-        format: parsed.format,
-        scan_target_version: parsed.scan_target_version,
-        created_at: timestamp,
-        updated_at: timestamp,
-        is_active: 1,
-      }
-
-      return ensureParseSuccess(QrCodeRecordSchema, fallbackRecord, 'createQrCodeRecord fallback record')
-    }
-
-    console.error('[createQrCodeRecord] unexpected response', response.data)
-    throw new Error('Failed to create QR code record')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[createQrCodeRecord] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(QrCodeRecordSchema, body.data, 'createQrCodeRecord response')
   }
+
+  if (isNcdbSuccess(body) && body.id) {
+    const fallbackRecord = {
+      id: body.id,
+      restaurant_id: parsed.restaurant_id,
+      menu_id: parsed.menu_id,
+      location_code: parsed.location_code,
+      qr_url: parsed.qr_url,
+      deeplink_url: parsed.deeplink_url,
+      download_url: parsed.download_url,
+      format: parsed.format,
+      scan_target_version: parsed.scan_target_version,
+      created_at: timestamp,
+      updated_at: timestamp,
+      is_active: 1,
+    }
+
+    return ensureParseSuccess(QrCodeRecordSchema, fallbackRecord, 'createQrCodeRecord fallback record')
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to create QR code record')
 }
 
 export interface GetQrCodesOptions {
@@ -113,9 +93,7 @@ export interface GetQrCodesOptions {
 }
 
 export async function getQrCodes(options: GetQrCodesOptions = {}): Promise<QrCodeRecord[]> {
-  const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
-  }
+  const payload: Record<string, unknown> = {}
 
   if (typeof options.restaurantId === 'number') {
     payload.restaurant_id = options.restaurantId
@@ -130,39 +108,24 @@ export async function getQrCodes(options: GetQrCodesOptions = {}): Promise<QrCod
     payload.is_active = options.isActive ? 1 : 0
   }
 
-  console.log('[getQrCodes] request payload', {
-    ...payload,
-    secret_key: '********',
+  console.log('[getQrCodes] request payload', payload)
+
+  const { body } = await ncdbRequest<QrCodeRecord | QrCodeRecord[]>({
+    endpoint: '/search/qr_codes',
+    payload,
+    context: 'qr.list',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/qr_codes'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
-
-    if (response.data?.status === 'success' && response.data?.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      return ensureParseSuccess(QrCodeArraySchema, records, 'getQrCodes records')
-    }
-
-    if (response.data?.status === 'success') {
-      return []
-    }
-
-    console.error('[getQrCodes] unexpected response', response.data)
-    throw new Error('Failed to fetch QR codes')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[getQrCodes] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
+    return ensureParseSuccess(QrCodeArraySchema, records, 'getQrCodes records')
   }
+
+  if (isNcdbSuccess(body)) {
+    return []
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch QR codes')
 }
 
 const UpdateQrCodeSchema = z
@@ -190,7 +153,6 @@ export async function updateQrCodeRecord({ id, ...updates }: UpdateQrCodeInput):
   const parsedUpdates = UpdateQrCodeSchema.parse(updates)
 
   const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
     record_id: id,
     updated_at: Date.now(),
     ...parsedUpdates,
@@ -215,32 +177,17 @@ export async function updateQrCodeRecord({ id, ...updates }: UpdateQrCodeInput):
     }
   })
 
-  console.log('[updateQrCodeRecord] sending payload', {
-    ...payload,
-    secret_key: '********',
+  console.log('[updateQrCodeRecord] sending payload', payload)
+
+  const { body } = await ncdbRequest<QrCodeRecord>({
+    endpoint: '/update/qr_codes',
+    payload,
+    context: 'qr.update',
   })
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/update/qr_codes'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
-
-    if (response.data?.status === 'success' && response.data?.data) {
-      return ensureParseSuccess(QrCodeRecordSchema, response.data.data, 'updateQrCodeRecord response')
-    }
-
-    console.error('[updateQrCodeRecord] unexpected response', response.data)
-    throw new Error('Failed to update QR code record')
-  } catch (error) {
-    if (axios.isAxiosError?.(error) && error.response?.data) {
-      console.error('[updateQrCodeRecord] NCDB error response', error.response.data)
-    }
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    return ensureParseSuccess(QrCodeRecordSchema, body.data, 'updateQrCodeRecord response')
   }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to update QR code record')
 }
