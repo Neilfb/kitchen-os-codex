@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import type { z } from 'zod'
 
-import { ncdbRequest, isNcdbSuccess } from './client'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import { ensureParseSuccess } from './constants'
 import { MenuItemRecordSchema, type MenuItemRecord } from '@/types/ncdb/menu'
 
@@ -88,11 +88,5 @@ export default async function createMenuItem(payload: Partial<MenuItemRecord>): 
     return ensureParseSuccess(MenuItemRecordSchema, body.data, 'createMenuItem response')
   }
 
-  const errorBody = body as { message?: unknown; error?: { message?: unknown } }
-  const message =
-    (typeof errorBody.message === 'string' && errorBody.message.trim()) ||
-    (typeof errorBody.error?.message === 'string' && errorBody.error.message.trim()) ||
-    null
-
-  throw new Error(message || 'Failed to create menu item')
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to create menu item')
 }

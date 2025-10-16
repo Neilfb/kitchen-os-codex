@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { ncdbRequest, isNcdbSuccess, type NcdbResponse } from './client'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import { ensureParseSuccess } from './constants'
 import { getMenuById } from './getMenuById'
 import { MenuRecordSchema, type MenuRecord } from '@/types/ncdb/menu'
@@ -17,20 +17,6 @@ const CreateMenuSchema = z.object({
 })
 
 export type CreateMenuInput = z.infer<typeof CreateMenuSchema>
-
-function extractMessage(body: NcdbResponse): string | undefined {
-  const messageCandidate = (body as { message?: unknown; error?: { message?: unknown } })
-    .message
-  if (typeof messageCandidate === 'string' && messageCandidate.trim()) {
-    return messageCandidate.trim()
-  }
-
-  const errorMessage = (body as { error?: { message?: unknown } }).error?.message
-  if (typeof errorMessage === 'string' && errorMessage.trim()) {
-    return errorMessage.trim()
-  }
-  return undefined
-}
 
 export async function createMenu(input: CreateMenuInput): Promise<MenuRecord> {
   const parsedInput = CreateMenuSchema.parse(input)
@@ -78,7 +64,7 @@ export async function createMenu(input: CreateMenuInput): Promise<MenuRecord> {
     }
   }
 
-  throw new Error(extractMessage(body) || 'Failed to create menu')
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to create menu')
 }
 
 export interface GetMenusOptions {
@@ -121,7 +107,7 @@ export async function getMenus(options: GetMenusOptions = {}): Promise<MenuRecor
     return []
   }
 
-  throw new Error(extractMessage(body) || 'Failed to fetch menus')
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch menus')
 }
 
 const UpdateMenuSchema = z
@@ -177,7 +163,7 @@ export async function updateMenu({ id, ...updates }: UpdateMenuInput): Promise<M
     return ensureParseSuccess(MenuRecordSchema, body.data, 'updateMenu response')
   }
 
-  throw new Error(extractMessage(body) || 'Failed to update menu')
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to update menu')
 }
 
 export async function deleteMenu({ id }: IdPayload): Promise<boolean> {
@@ -201,5 +187,5 @@ export async function deleteMenu({ id }: IdPayload): Promise<boolean> {
     return true
   }
 
-  throw new Error(extractMessage(body) || 'Failed to delete menu')
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to delete menu')
 }

@@ -1,7 +1,7 @@
-import axios from 'axios'
 import { z } from 'zod'
 
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
+import { ensureParseSuccess } from './constants'
 import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
 
 export interface GetRestaurantsOptions {
@@ -14,9 +14,7 @@ export interface GetRestaurantsOptions {
 const RestaurantsArraySchema = z.array(RestaurantRecordSchema)
 
 export async function getRestaurants(options: GetRestaurantsOptions = {}): Promise<RestaurantRecord[]> {
-  const payload: Record<string, unknown> = {
-    secret_key: NCDB_SECRET_KEY,
-  }
+  const payload: Record<string, unknown> = {}
 
   if (typeof options.ownerId === 'string' && options.ownerId.trim()) {
     payload.owner_id = options.ownerId.trim()
@@ -34,29 +32,20 @@ export async function getRestaurants(options: GetRestaurantsOptions = {}): Promi
     payload.offset = options.offset
   }
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/restaurants'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<RestaurantRecord | RestaurantRecord[]>({
+    endpoint: '/search/restaurants',
+    payload,
+    context: 'restaurant.list',
+  })
 
-    if (response.data.status === 'success' && response.data.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      return ensureParseSuccess(RestaurantsArraySchema, records, 'getRestaurants records')
-    }
-
-    if (response.data.status === 'success') {
-      return []
-    }
-
-    console.error('[getRestaurants] unexpected response', response.data)
-    throw new Error('Failed to fetch restaurants')
-  } catch (error) {
-    throw extractNcdbError(error)
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
+    return ensureParseSuccess(RestaurantsArraySchema, records, 'getRestaurants records')
   }
+
+  if (isNcdbSuccess(body)) {
+    return []
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch restaurants')
 }

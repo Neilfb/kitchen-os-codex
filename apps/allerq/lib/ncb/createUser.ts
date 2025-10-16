@@ -3,7 +3,7 @@
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 
-import { ncdbRequest, isNcdbSuccess } from './client'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
 import { RoleEnum, UserRecordSchema, type Role } from '@/types/ncdb/user'
 
 export interface CreateUserInput {
@@ -97,11 +97,5 @@ export async function createUser({
     return true
   }
 
-  const errorBody = body as { message?: unknown; error?: { message?: unknown } }
-  const message =
-    (typeof errorBody.message === 'string' && errorBody.message.trim()) ||
-    (typeof errorBody.error?.message === 'string' && errorBody.error.message.trim()) ||
-    null
-
-  throw new Error(message || 'Failed to create user')
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to create user')
 }

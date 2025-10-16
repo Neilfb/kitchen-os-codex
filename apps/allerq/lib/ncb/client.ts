@@ -39,6 +39,20 @@ export function isNcdbSuccess<T>(body: NcdbResponse<T>): body is NcdbSuccessResp
   return (body as NcdbSuccessResponse<T>).status === 'success'
 }
 
+export function getNcdbErrorMessage(body: NcdbResponse): string | undefined {
+  const messageCandidate = (body as { message?: unknown }).message
+  if (typeof messageCandidate === 'string' && messageCandidate.trim()) {
+    return messageCandidate.trim()
+  }
+
+  const errorMessage = (body as { error?: { message?: unknown } }).error?.message
+  if (typeof errorMessage === 'string' && errorMessage.trim()) {
+    return errorMessage.trim()
+  }
+
+  return undefined
+}
+
 function toEndpointList(endpoint: string | string[]): string[] {
   if (Array.isArray(endpoint)) {
     return endpoint

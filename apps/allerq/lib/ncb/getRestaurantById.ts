@@ -1,6 +1,5 @@
-import axios from 'axios'
-
-import { NCDB_API_KEY, NCDB_SECRET_KEY, buildNcdbUrl, ensureParseSuccess, extractNcdbError } from './constants'
+import { ncdbRequest, isNcdbSuccess, getNcdbErrorMessage } from './client'
+import { ensureParseSuccess } from './constants'
 import { RestaurantRecordSchema, type RestaurantRecord } from '@/types/ncdb/restaurant'
 
 export interface GetRestaurantByIdPayload {
@@ -8,37 +7,30 @@ export interface GetRestaurantByIdPayload {
 }
 
 export async function getRestaurantById({ id }: GetRestaurantByIdPayload): Promise<RestaurantRecord | null> {
-  const payload = {
-    secret_key: NCDB_SECRET_KEY,
-    id,
-  }
+  const payload = { id }
 
-  try {
-    const response = await axios({
-      method: 'post',
-      url: buildNcdbUrl('/search/restaurants'),
-      headers: {
-        Authorization: `Bearer ${NCDB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: payload,
-    })
+  const { body } = await ncdbRequest<RestaurantRecord | RestaurantRecord[]>({
+    endpoint: '/search/restaurants',
+    payload,
+    context: 'restaurant.getById',
+  })
 
-    if (response.data.status === 'success' && response.data.data) {
-      const records = Array.isArray(response.data.data) ? response.data.data : [response.data.data]
-      for (const record of records) {
-        try {
-          return ensureParseSuccess(RestaurantRecordSchema, record, 'getRestaurantById record')
-        } catch {
-          continue
-        }
+  if (isNcdbSuccess(body) && body.data) {
+    const records = Array.isArray(body.data) ? body.data : [body.data]
+    for (const record of records) {
+      try {
+        return ensureParseSuccess(RestaurantRecordSchema, record, 'getRestaurantById record')
+      } catch (error) {
+        console.warn('[getRestaurantById] skipping malformed record', { record, error })
       }
-
-      throw new Error('NCDB returned malformed restaurant record')
     }
 
-    return null
-  } catch (error) {
-    throw extractNcdbError(error)
+    throw new Error('NCDB returned malformed restaurant record')
   }
+
+  if (isNcdbSuccess(body)) {
+    return null
+  }
+
+  throw new Error(getNcdbErrorMessage(body) || 'Failed to fetch restaurant')
 }
