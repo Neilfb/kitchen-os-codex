@@ -16,5 +16,18 @@ describe('NCDB menu contract', () => {
       name: 'Summer Menu',
       restaurant_id: 55,
     })
+
+    expect(parsed[1]).toMatchObject({
+      id: '202',
+      name: 'Winter Menu',
+      description: '',
+      restaurant_id: 55,
+      created_by: undefined,
+      menu_type: undefined,
+      is_active: 1,
+      ai_processed: undefined,
+      upload_file_name: undefined,
+      source_upload_id: undefined,
+    })
   })
 })

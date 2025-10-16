@@ -35,21 +35,61 @@ export const MenuRecordSchema = z
   .object({
     id: z.union([z.number(), z.string()]),
     name: z.string(),
-    description: z.string().optional().default(''),
+    description: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((value) => (typeof value === 'string' ? value : '')),
     restaurant_id: z.union([z.number(), z.string()]).transform((value) => Number(value)),
-    created_by: z.string().optional(),
+    created_by: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((value) => {
+        if (typeof value !== 'string') return undefined
+        const trimmed = value.trim()
+        return trimmed.length > 0 ? trimmed : undefined
+      }),
     created_at: z.union([z.number(), z.string()]).transform((value) => Number(value)),
     updated_at: z.union([z.number(), z.string()]).transform((value) => Number(value)),
     external_id: z
       .union([z.string(), z.null(), z.undefined()])
       .transform((value) => (typeof value === 'string' ? value : undefined)),
-    menu_type: z.string().optional(),
-    is_active: z.union([z.number(), z.boolean()]).optional().default(1),
-    ai_processed: z.union([z.number(), z.boolean()]).optional(),
+    menu_type: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((value) => {
+        if (typeof value !== 'string') return undefined
+        const trimmed = value.trim()
+        return trimmed.length > 0 ? trimmed : undefined
+      }),
+    is_active: z
+      .union([z.number(), z.boolean(), z.string()])
+      .transform((value) => {
+        if (typeof value === 'string') {
+          const trimmed = value.trim()
+          if (trimmed === '') return undefined
+          const numeric = Number(trimmed)
+          if (Number.isFinite(numeric)) {
+            return numeric
+          }
+          if (trimmed.toLowerCase() === 'true') return 1
+          if (trimmed.toLowerCase() === 'false') return 0
+        }
+        return value
+      })
+      .optional()
+      .default(1),
+    ai_processed: z
+      .union([z.number(), z.boolean(), z.null(), z.undefined()])
+      .transform((value) => (value === null ? undefined : value)),
     upload_file_name: z
       .union([z.string(), z.null(), z.undefined()])
       .transform((value) => (typeof value === 'string' ? value : undefined)),
-    source_upload_id: z.union([z.number(), z.string()]).transform((value) => Number(value)).optional(),
+    source_upload_id: z
+      .union([z.number(), z.string(), z.null(), z.undefined()])
+      .transform((value) => {
+        if (value === null || value === undefined || value === '') {
+          return undefined
+        }
+        const numeric = Number(value)
+        return Number.isFinite(numeric) ? numeric : undefined
+      }),
     ai_summary: z
       .union([z.string(), z.null(), z.undefined()])
       .transform((value) => (typeof value === 'string' ? value : undefined)),

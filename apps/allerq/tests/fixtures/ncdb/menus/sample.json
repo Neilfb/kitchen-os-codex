@@ -17,6 +17,22 @@
       "source_upload_id": 999,
       "ai_summary": null,
       "extra_field_from_ncdb": "should be ignored"
+    },
+    {
+      "id": "202",
+      "name": "Winter Menu",
+      "description": null,
+      "restaurant_id": "55",
+      "created_by": null,
+      "created_at": "1718040000000",
+      "updated_at": "1718126400000",
+      "external_id": null,
+      "menu_type": null,
+      "is_active": "true",
+      "ai_processed": null,
+      "upload_file_name": null,
+      "source_upload_id": null,
+      "ai_summary": null
     }
   ],
   "meta": {
